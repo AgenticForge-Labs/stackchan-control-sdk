@@ -8,7 +8,7 @@ This repository exposes **StackChan-native capabilities**:
 
 - yaw and pitch motion
 - eye and mouth feature updates
-- native animation/dance keyframes
+- complete native animation/dance keyframes
 - RGB lighting
 - stock Avatar WebSocket packet framing
 - mocks for development without hardware
@@ -27,10 +27,17 @@ This repository now contains the software needed up to the physical-hardware bou
 2. mock and generic WebSocket transports;
 3. an upstream audit pinned to a public M5Stack commit;
 4. a reproducible firmware overlay that adds an **EXT CONTROL** app;
-5. USB Serial/JTAG request, response, state, stop, and completion handling;
-6. a conservative capability-test CLI and evidence report.
+5. USB Serial/JTAG request, response, state, stop, validation, and completion handling;
+6. a conservative capability-test CLI and evidence report;
+7. a successful full build under ESP-IDF 5.5.4 with retained flash artifacts.
 
-The overlay is not yet claimed to work on retail hardware. The remaining gate is to build/flash it and plug in StackChan to identify the exposed USB data port and observe its real behavior.
+The overlay is not yet claimed to work on retail hardware. The remaining gate is to flash it, identify the exposed USB data port, and observe the real device behavior.
+
+## Angle units
+
+M5Stack's native servo JSON represents angles as integer **tenths of a degree**. For example, native `450` means 45°. The high-level `StackChan.set_pose()` API accepts ordinary degrees and converts them. Lower-level `ServoUpdate.angle` and the external-control JSON protocol use native tenths.
+
+Continuous-rotation commands and custom spring parameters are deliberately disabled in external-control protocol v1. Position commands are validated against the upstream native limits before reaching the servos.
 
 ## Python example
 
@@ -41,11 +48,14 @@ from stackchan_control.transports import MemoryTransport
 transport = MemoryTransport()
 
 async with StackChan(transport) as robot:
+    # Degree-based convenience API; serialized as yaw=200 and pitch=450.
     await robot.set_pose(yaw=20, pitch=45, speed=25)
     await robot.update_avatar(
         AvatarUpdate(mouth=FeatureUpdate(size=8))
     )
 ```
+
+Partial native animation keyframes are rejected. The upstream parser supplies defaults for omitted fields, including fields that are unsafe to guess, so each transmitted frame must explicitly include both eyes, mouth, yaw, pitch, and servo speeds.
 
 ## Hardware-ready workflow
 
