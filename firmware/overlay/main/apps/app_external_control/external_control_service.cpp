@@ -21,6 +21,19 @@ std::string json_value_to_string(ArduinoJson::JsonVariantConst value)
     ArduinoJson::serializeJson(value, output);
     return output;
 }
+
+void write_feature_state(
+    ArduinoJson::JsonObject target,
+    stackchan::avatar::Feature& feature)
+{
+    auto position = feature.getPosition();
+    target["x"] = position.x;
+    target["y"] = position.y;
+    target["rotation"] = feature.getRotation();
+    target["weight"] = feature.getWeight();
+    target["size"] = feature.getSize();
+    target["visible"] = feature.getVisible();
+}
 }  // namespace
 
 bool ExternalControlService::start()
@@ -145,7 +158,8 @@ void ExternalControlService::handle_line(const std::string& line)
     }
 
     if (method == "system.state") {
-        auto& motion = GetStackChan().motion();
+        auto& stackchan = GetStackChan();
+        auto& motion = stackchan.motion();
         ArduinoJson::JsonDocument response;
         response["id"] = id;
         response["event"] = "completed";
@@ -155,6 +169,19 @@ void ExternalControlService::handle_line(const std::string& line)
         result["yaw_moving"] = motion.yawServo().isMoving();
         result["pitch_moving"] = motion.pitchServo().isMoving();
         result["animation_active"] = false;
+        if (stackchan.hasAvatar()) {
+            auto avatar_state = result["avatar"].to<ArduinoJson::JsonObject>();
+            auto& avatar = stackchan.avatar();
+            write_feature_state(
+                avatar_state["leftEye"].to<ArduinoJson::JsonObject>(),
+                avatar.leftEye());
+            write_feature_state(
+                avatar_state["rightEye"].to<ArduinoJson::JsonObject>(),
+                avatar.rightEye());
+            write_feature_state(
+                avatar_state["mouth"].to<ArduinoJson::JsonObject>(),
+                avatar.mouth());
+        }
         std::string output;
         ArduinoJson::serializeJson(response, output);
         write_json(output);
