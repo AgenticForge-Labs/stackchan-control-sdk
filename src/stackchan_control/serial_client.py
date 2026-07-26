@@ -17,12 +17,16 @@ def candidate_ports() -> list[dict[str, str | None]]:
     try:
         from serial.tools import list_ports
     except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("Install stackchan-control[serial] to inspect serial ports") from exc
+        raise RuntimeError(
+            "Install stackchan-control[serial] to inspect serial ports"
+        ) from exc
 
     candidates: list[dict[str, str | None]] = []
     for port in list_ports.comports():
-        text = " ".join(filter(None, [port.description, port.manufacturer, port.product])).lower()
-        likely = any(token in text for token in ("espressif", "m5stack", "usb jtag", "usb serial"))
+        descriptions = [port.description, port.manufacturer, port.product]
+        text = " ".join(filter(None, descriptions)).lower()
+        tokens = ("espressif", "m5stack", "usb jtag", "usb serial")
+        likely = any(token in text for token in tokens)
         candidates.append(
             {
                 "device": port.device,
@@ -36,7 +40,13 @@ def candidate_ports() -> list[dict[str, str | None]]:
 
 
 class SerialControlClient:
-    def __init__(self, port: str, *, baudrate: int = 115200, timeout: float = 0.1) -> None:
+    def __init__(
+        self,
+        port: str,
+        *,
+        baudrate: int = 115200,
+        timeout: float = 0.1,
+    ) -> None:
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
@@ -53,7 +63,9 @@ class SerialControlClient:
         try:
             import serial
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise RuntimeError("Install stackchan-control[serial] to use hardware probing") from exc
+            raise RuntimeError(
+                "Install stackchan-control[serial] to use hardware probing"
+            ) from exc
         self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
         self._serial.reset_input_buffer()
 
