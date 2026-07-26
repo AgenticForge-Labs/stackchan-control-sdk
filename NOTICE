@@ -1,0 +1,9 @@
+stackchan-control-sdk
+Copyright (c) 2026 AgenticForge Labs
+
+This project interoperates with M5Stack StackChan firmware. The audited upstream
+project is copyright M5Stack Technology Co., Ltd. and distributed under the MIT
+License. No upstream source is vendored in the initial implementation.
+
+M5Stack and StackChan are names of their respective owners. This repository is
+not represented as an official M5Stack SDK.
