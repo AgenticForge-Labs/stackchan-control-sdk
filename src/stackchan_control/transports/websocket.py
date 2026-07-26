@@ -8,14 +8,20 @@ still required before this can control unmodified stock firmware.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Protocol, cast
+
+
+class _WebSocketConnection(Protocol):
+    async def send(self, message: bytes) -> None: ...
+
+    async def close(self) -> None: ...
 
 
 class WebSocketTransport:
     def __init__(self, url: str, *, additional_headers: Mapping[str, str] | None = None) -> None:
         self.url = url
         self.additional_headers = dict(additional_headers or {})
-        self._socket: Any | None = None
+        self._socket: _WebSocketConnection | None = None
 
     async def connect(self) -> None:
         try:
@@ -24,7 +30,8 @@ class WebSocketTransport:
             raise RuntimeError(
                 "Install stackchan-control[websocket] to use WebSocketTransport"
             ) from exc
-        self._socket = await connect(self.url, additional_headers=self.additional_headers)
+        connection = await connect(self.url, additional_headers=self.additional_headers)
+        self._socket = cast(_WebSocketConnection, connection)
 
     async def send(self, frame: bytes) -> None:
         if self._socket is None:
