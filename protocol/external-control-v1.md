@@ -4,7 +4,7 @@ Status: implemented in the firmware overlay; hardware validation pending.
 
 The local firmware extension uses newline-delimited JSON over ESP32-S3 USB Serial/JTAG. Because ESP-IDF logs may share the port, every protocol line starts with `@AF `.
 
-## Commands
+## Active commands
 
 - `system.hello`
 - `system.capabilities`
@@ -14,8 +14,9 @@ The local firmware extension uses newline-delimited JSON over ESP32-S3 USB Seria
 - `avatar.update`
 - `motion.update`
 - `lights.update`
-- `animation.play`
 - `animation.stop`
+
+`animation.play` is recognized but deliberately returns `failed` until the first retail unit reports complete current eye, mouth, and servo state. The public M5Stack parser fills omitted keyframe fields with defaults, so partial keyframes are not safe enough for the initial hardware session.
 
 ## Command envelope
 
@@ -44,12 +45,16 @@ The firmware emits an unsolicited ready event when the service starts:
 @AF {"event":"ready","protocol_version":"1.0","transport":"usb_serial_jtag"}
 ```
 
+## State response
+
+`system.state` returns current yaw and pitch angles, movement flags, and the current left-eye, right-eye, and mouth fields. The hardware probe uses this snapshot to restore the exact original face after testing.
+
 ## Completion semantics
 
 - avatar and lighting updates complete after they have been applied to the native model
 - motion completes when both native servos report settled, with a short fallback for no-op moves
-- animation completes when its `DanceModifier` is removed by the native modifier pool
-- `system.stop` removes active animation and commands both servos to hold their current angles
+- `system.stop` cancels pending motion completion and commands both servos to hold their current angles
+- native animation completion remains gated until complete retail keyframes are captured
 
 These semantics must be checked on the retail device before they are treated as production guarantees.
 
@@ -57,5 +62,7 @@ These semantics must be checked on the retail device before they are treated as 
 
 - the host probe does not move servos unless `--allow-motion` is supplied
 - the first probe uses yaw only through ±12 degrees and pitch only from 35 to 55 degrees
+- each first-session motion command specifies both axes explicitly
+- face tests begin from a reported state snapshot and restore that exact state
 - normal application-level limits remain the responsibility of the SDK and firmware motion layer
-- any disconnect watchdog behavior beyond app exit remains follow-up work after the first hardware test
+- disconnect watchdog behavior beyond app exit remains follow-up work after the first hardware test
