@@ -10,10 +10,10 @@ from .external_protocol import ExternalEvent, decode_event_line, encode_command
 
 
 class SerialControlError(RuntimeError):
-    """Raised when the firmware rejects a command or does not respond."""
+    """Raised when the firmware rejects, cancels, or does not answer a command."""
 
 
-def candidate_ports() -> list[dict[str, str | None]]:
+def candidate_ports() -> list[dict[str, str | bool | None]]:
     try:
         from serial.tools import list_ports
     except ImportError as exc:  # pragma: no cover - optional dependency
@@ -21,7 +21,7 @@ def candidate_ports() -> list[dict[str, str | None]]:
             "Install stackchan-control[serial] to inspect serial ports"
         ) from exc
 
-    candidates: list[dict[str, str | None]] = []
+    candidates: list[dict[str, str | bool | None]] = []
     for port in list_ports.comports():
         descriptions = [port.description, port.manufacturer, port.product]
         text = " ".join(filter(None, descriptions)).lower()
@@ -33,7 +33,7 @@ def candidate_ports() -> list[dict[str, str | None]]:
                 "description": port.description,
                 "manufacturer": port.manufacturer,
                 "serial_number": port.serial_number,
-                "likely_stackchan": str(likely).lower(),
+                "likely_stackchan": likely,
             }
         )
     return candidates
@@ -97,8 +97,8 @@ class SerialControlClient:
             if event is None or event.command_id != command_id:
                 continue
             events.append(event)
-            if event.event == "failed":
-                raise SerialControlError(event.detail or f"{method} failed")
+            if event.event in {"failed", "cancelled"}:
+                raise SerialControlError(event.detail or f"{method} {event.event}")
             if event.event == "completed":
                 return events
         rendered = [asdict(event) for event in events]
