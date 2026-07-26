@@ -7,7 +7,8 @@ from stackchan_control import degrees_to_native_angle, native_angle_to_degrees
 
 def test_degree_conversion() -> None:
     assert degrees_to_native_angle(45) == 450
-    assert degrees_to_native_angle(-12.25) == -122
+    assert degrees_to_native_angle(12.25) == 123
+    assert degrees_to_native_angle(-12.25) == -123
     assert native_angle_to_degrees(550) == 55.0
 
 
