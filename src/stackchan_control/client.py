@@ -52,9 +52,12 @@ class StackChan:
 
     async def update_motion(self, update: MotionUpdate) -> None:
         """Send a low-level native motion update using tenths-of-a-degree angles."""
-        if update.yaw is not None and update.yaw.angle is not None:
-            if not YAW_MIN_TENTHS <= update.yaw.angle <= YAW_MAX_TENTHS:
-                raise ValueError("native yaw angle must be between -1280 and 1280 tenths")
+        if (
+            update.yaw is not None
+            and update.yaw.angle is not None
+            and not YAW_MIN_TENTHS <= update.yaw.angle <= YAW_MAX_TENTHS
+        ):
+            raise ValueError("native yaw angle must be between -1280 and 1280 tenths")
         if (
             self._enforce_pitch_limits
             and update.pitch is not None
@@ -107,7 +110,7 @@ class StackChan:
         if not all(frame.is_complete() for frame in keyframes):
             raise ValueError(
                 "every native keyframe must explicitly define both eyes, mouth, "
-                "yaw, pitch, and servo speeds"
+                "yaw, pitch, servo speeds, and both RGB colors"
             )
         await self._transport.send(
             encode_json_packet(DataType.DANCE_SEQUENCE, [frame.to_dict() for frame in keyframes])
