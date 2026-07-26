@@ -1,6 +1,12 @@
 import pytest
 
-from stackchan_control.models import AvatarUpdate, FeatureUpdate, Keyframe, MotionUpdate, ServoUpdate
+from stackchan_control.models import (
+    AvatarUpdate,
+    FeatureUpdate,
+    Keyframe,
+    MotionUpdate,
+    ServoUpdate,
+)
 
 
 def test_native_json_field_names() -> None:
