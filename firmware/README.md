@@ -1,27 +1,79 @@
-# Companion firmware extension
+# Firmware extension
 
-The upstream firmware is not vendored in this initial PR. The first audit shows that only a thin external-control integration is needed.
+This directory contains an overlay for the public M5Stack StackChan ESP-IDF firmware. It does not duplicate the entire upstream repository. `upstream.lock.json` pins the exact upstream commit and `tools/prepare_firmware.py` creates a reproducible worktree.
 
-## Intended implementation
+## What the overlay adds
 
-Add an `app_external_control` or equivalent HAL service to the M5Stack ESP-IDF project. It will:
+The **EXT CONTROL** launcher app:
 
-1. attach the existing default avatar and motion implementation;
-2. read newline-delimited protocol-v1 messages from USB CDC;
-3. validate commands and safety limits;
-4. call `updateAvatarFromJson`, `updateMotionFromJson`, or the existing animation parser;
-5. emit accepted, completed, failed, and cancelled events;
-6. stop safely and restore idle state when the host disconnects.
+- creates the existing `DefaultAvatar`
+- opens the ESP32-S3 USB Serial/JTAG data channel
+- accepts newline-delimited JSON commands prefixed with `@AF `
+- routes avatar, motion, lighting, and animation data into existing M5Stack APIs
+- reports accepted, completed, failed, state, and capability events
+- stops active animation and holds the current servo angles on exit or `system.stop`
 
-## Upstream management
+It does not include character emotions, dialogue, audio playback, or AgenticForge scene logic.
 
-Do not copy upstream files casually into this directory. Choose one of these approaches after the first successful firmware build:
+## Prepare the pinned source tree
 
-- a pinned Git submodule plus a small patch directory; or
-- a maintained fork with upstream merge documentation.
+Install Git and ESP-IDF 5.5.4, then run:
 
-Any incorporated M5Stack source must retain its MIT license and copyright notices.
+```bash
+python tools/prepare_firmware.py --refresh
+```
 
-## Hardware gate
+The prepared project appears at:
 
-Firmware code should not be described as hardware-tested until it has been built for the exact retail StackChan board and exercised on a physical unit.
+```text
+.firmware-worktree/StackChan/firmware
+```
+
+The preparation script asserts exact patch anchors. If M5Stack changes the pinned source, it fails rather than silently producing a partially patched firmware image.
+
+## Build
+
+With the ESP-IDF environment activated:
+
+```bash
+python tools/prepare_firmware.py --refresh --build
+```
+
+Equivalent manual commands:
+
+```bash
+cd .firmware-worktree/StackChan/firmware
+python3 ./fetch_repos.py
+idf.py build
+```
+
+## Flash and restore
+
+Do not flash until the retail device is available and its existing firmware version has been recorded. The first physical session should identify which StackChan/CoreS3 USB connector exposes the ESP32-S3 USB Serial/JTAG port.
+
+Flash the prepared image with:
+
+```bash
+idf.py -p PORT flash monitor
+```
+
+Keep the upstream repository and M5Stack's official flashing instructions available so the factory firmware can be restored.
+
+## Wire protocol
+
+Host command:
+
+```text
+@AF {"id":"abc","method":"system.hello","params":{}}
+```
+
+Firmware event:
+
+```text
+@AF {"id":"abc","event":"accepted"}
+@AF {"id":"abc","event":"completed","result":{"protocol_version":"1.0"}}
+```
+
+Normal ESP-IDF logs may share the same serial port. Host software ignores lines without the `@AF ` prefix.
+
+See `docs/hardware-capability-test.md` for the exact plug-in test sequence.
