@@ -26,6 +26,12 @@ class ServoDict(TypedDict, total=False):
     spring: SpringDict
 
 
+def _is_hex_color(value: str) -> bool:
+    return len(value) == 7 and value.startswith("#") and all(
+        character in "0123456789abcdefABCDEF" for character in value[1:]
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class FeatureUpdate:
     """Native avatar feature values.
@@ -174,13 +180,22 @@ class Keyframe:
     def __post_init__(self) -> None:
         if self.duration_ms < 0:
             raise ValueError("duration_ms must be non-negative")
+        for name, color in (
+            ("left_rgb_color", self.left_rgb_color),
+            ("right_rgb_color", self.right_rgb_color),
+        ):
+            if color is not None and not _is_hex_color(color):
+                raise ValueError(f"{name} must use #RRGGBB format")
 
     def is_complete(self) -> bool:
-        """Return whether every upstream keyframe field has an explicit value."""
+        """Return whether every field applied by upstream has an explicit value."""
         features = (self.left_eye, self.right_eye, self.mouth)
         servos = (self.yaw, self.pitch)
-        return all(feature is not None and feature.is_complete() for feature in features) and all(
-            servo is not None and servo.is_complete_position() for servo in servos
+        return (
+            all(feature is not None and feature.is_complete() for feature in features)
+            and all(servo is not None and servo.is_complete_position() for servo in servos)
+            and self.left_rgb_color is not None
+            and self.right_rgb_color is not None
         )
 
     def to_dict(self) -> dict[str, object]:
