@@ -28,11 +28,35 @@ class ServoDict(TypedDict, total=False):
 
 @dataclass(frozen=True, slots=True)
 class FeatureUpdate:
+    """Native avatar feature values.
+
+    Position and size ranges are -100..100, rotation is 0..3600, and weight
+    is 0..100. Position changes require both ``x`` and ``y`` because that is
+    how the upstream firmware parser applies them.
+    """
+
     x: int | None = None
     y: int | None = None
     rotation: int | None = None
     weight: int | None = None
     size: int | None = None
+
+    def __post_init__(self) -> None:
+        if (self.x is None) != (self.y is None):
+            raise ValueError("x and y must be supplied together")
+        for name, value in (("x", self.x), ("y", self.y), ("size", self.size)):
+            if value is not None and not -100 <= value <= 100:
+                raise ValueError(f"{name} must be between -100 and 100")
+        if self.rotation is not None and not 0 <= self.rotation <= 3600:
+            raise ValueError("rotation must be between 0 and 3600")
+        if self.weight is not None and not 0 <= self.weight <= 100:
+            raise ValueError("weight must be between 0 and 100")
+
+    def is_complete(self) -> bool:
+        return all(
+            value is not None
+            for value in (self.x, self.y, self.rotation, self.weight, self.size)
+        )
 
     def to_dict(self) -> FeatureDict:
         result: FeatureDict = {}
@@ -51,6 +75,12 @@ class FeatureUpdate:
 
 @dataclass(frozen=True, slots=True)
 class ServoUpdate:
+    """Native servo command.
+
+    ``angle`` uses the upstream firmware's integer tenths-of-a-degree units.
+    Use :meth:`StackChan.set_pose` for a degree-based convenience API.
+    """
+
     angle: int | None = None
     speed: int | None = None
     rotate: int | None = None
@@ -66,6 +96,19 @@ class ServoUpdate:
             raise ValueError("spring parameters require angle")
         if self.speed is not None and (self.stiffness is not None or self.damping is not None):
             raise ValueError("speed and spring parameters select different firmware motion modes")
+        if self.speed is not None and not 0 <= self.speed <= 1000:
+            raise ValueError("speed must be between 0 and 1000")
+        if self.rotate is not None and not -1000 <= self.rotate <= 1000:
+            raise ValueError("rotate must be between -1000 and 1000")
+
+    def is_complete_position(self) -> bool:
+        return (
+            self.angle is not None
+            and self.speed is not None
+            and self.rotate is None
+            and self.stiffness is None
+            and self.damping is None
+        )
 
     def to_dict(self) -> ServoDict:
         result: ServoDict = {}
@@ -131,6 +174,14 @@ class Keyframe:
     def __post_init__(self) -> None:
         if self.duration_ms < 0:
             raise ValueError("duration_ms must be non-negative")
+
+    def is_complete(self) -> bool:
+        """Return whether every upstream keyframe field has an explicit value."""
+        features = (self.left_eye, self.right_eye, self.mouth)
+        servos = (self.yaw, self.pitch)
+        return all(feature is not None and feature.is_complete() for feature in features) and all(
+            servo is not None and servo.is_complete_position() for servo in servos
+        )
 
     def to_dict(self) -> dict[str, object]:
         result: dict[str, object] = {"durationMs": self.duration_ms}
