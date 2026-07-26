@@ -34,6 +34,23 @@ def _observe(prompt: str, *, no_prompt: bool) -> str:
     )
 
 
+def _shift(value: int, amount: int, minimum: int, maximum: int) -> int:
+    return value + amount if value + amount <= maximum else max(minimum, value - amount)
+
+
+def _feature_payload(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise ValueError("avatar feature state is missing")
+    keys = ("x", "y", "rotation", "weight", "size")
+    payload: dict[str, int] = {}
+    for key in keys:
+        item = value.get(key)
+        if not isinstance(item, int):
+            raise ValueError(f"avatar feature state lacks integer {key}")
+        payload[key] = item
+    return payload
+
+
 def run_probe(
     client: SerialControlClient,
     *,
@@ -71,31 +88,67 @@ def run_probe(
         return events
 
     test("hello", lambda: client.request("system.hello"))
-    test("state_initial", lambda: client.request("system.state"))
-    test(
-        "avatar_features",
-        lambda: client.request(
-            "avatar.update",
-            {
-                "leftEye": {"rotation": -8, "size": 105},
-                "rightEye": {"rotation": 8, "size": 105},
-                "mouth": {"size": 120, "weight": 80},
-            },
-        ),
-        "Did both eyes and the mouth visibly change?",
+
+    initial_events = client.request("system.state")
+    initial_summary = _result(initial_events)
+    report["tests"].append(
+        {
+            "name": "state_initial",
+            "command_status": "pass",
+            **initial_summary,
+        }
     )
-    time.sleep(0.5)
-    test(
-        "avatar_restore",
-        lambda: client.request(
-            "avatar.update",
+    initial_state = initial_summary.get("result")
+    avatar_state = initial_state.get("avatar") if isinstance(initial_state, dict) else None
+
+    if isinstance(avatar_state, dict):
+        left_eye = _feature_payload(avatar_state.get("leftEye"))
+        right_eye = _feature_payload(avatar_state.get("rightEye"))
+        mouth = _feature_payload(avatar_state.get("mouth"))
+        changed_left = dict(left_eye)
+        changed_right = dict(right_eye)
+        changed_mouth = dict(mouth)
+        changed_left["rotation"] = _shift(left_eye["rotation"], 200, 0, 3600)
+        changed_right["rotation"] = _shift(right_eye["rotation"], 300, 0, 3600)
+        changed_left["size"] = _shift(left_eye["size"], 20, -100, 100)
+        changed_right["size"] = _shift(right_eye["size"], 20, -100, 100)
+        changed_mouth["size"] = _shift(mouth["size"], 25, -100, 100)
+        changed_mouth["weight"] = _shift(mouth["weight"], 30, 0, 100)
+
+        test(
+            "avatar_features",
+            lambda: client.request(
+                "avatar.update",
+                {
+                    "leftEye": changed_left,
+                    "rightEye": changed_right,
+                    "mouth": changed_mouth,
+                },
+            ),
+            "Did both eyes and the mouth visibly change?",
+        )
+        time.sleep(0.5)
+        test(
+            "avatar_restore",
+            lambda: client.request(
+                "avatar.update",
+                {
+                    "leftEye": left_eye,
+                    "rightEye": right_eye,
+                    "mouth": mouth,
+                },
+            ),
+            "Did the original face return?",
+        )
+    else:
+        report["tests"].append(
             {
-                "leftEye": {"rotation": 0, "size": 100},
-                "rightEye": {"rotation": 0, "size": 100},
-                "mouth": {"size": 100, "weight": 100},
-            },
-        ),
-    )
+                "name": "avatar_features",
+                "command_status": "skipped",
+                "reason": "firmware did not report reversible avatar state",
+            }
+        )
+
     test(
         "lights",
         lambda: client.request(
