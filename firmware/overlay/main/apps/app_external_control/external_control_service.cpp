@@ -5,6 +5,9 @@
  */
 #include "external_control_service.h"
 #include <ArduinoJson.hpp>
+#include <apps/common/common.h>
+#include <cctype>
+#include <cstring>
 #include <driver/usb_serial_jtag.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
@@ -14,6 +17,7 @@
 namespace agenticforge {
 namespace {
 constexpr const char* kPrefix = "@AF ";
+constexpr const char* kExtensionVersion = "0.2.0";
 constexpr int kYawMinTenths = -1280;
 constexpr int kYawMaxTenths = 1280;
 constexpr int kPitchMinTenths = 30;
@@ -41,6 +45,151 @@ void write_feature_state(
     target["visible"] = feature.getVisible();
 }
 
+bool validate_integer_field(
+    ArduinoJson::JsonObjectConst object,
+    const char* key,
+    int minimum,
+    int maximum,
+    const char* context,
+    std::string& error)
+{
+    auto value = object[key];
+    if (value.isNull()) {
+        return true;
+    }
+    if (!value.is<int>()) {
+        error = std::string(context) + " " + key + " must be an integer";
+        return false;
+    }
+    const int parsed = value.as<int>();
+    if (parsed < minimum || parsed > maximum) {
+        error = std::string(context) + " " + key + " is outside its allowed range";
+        return false;
+    }
+    return true;
+}
+
+bool validate_feature_command(
+    ArduinoJson::JsonVariantConst value,
+    const char* name,
+    std::string& error)
+{
+    if (!value.is<ArduinoJson::JsonObjectConst>()) {
+        error = std::string(name) + " must be an object";
+        return false;
+    }
+
+    auto object = value.as<ArduinoJson::JsonObjectConst>();
+    const bool has_x = !object["x"].isNull();
+    const bool has_y = !object["y"].isNull();
+    if (has_x != has_y) {
+        error = std::string(name) + " x and y must be supplied together";
+        return false;
+    }
+
+    const bool has_known_field =
+        has_x || !object["rotation"].isNull() || !object["weight"].isNull() ||
+        !object["size"].isNull();
+    if (!has_known_field) {
+        error = std::string(name) + " contains no supported feature fields";
+        return false;
+    }
+
+    return validate_integer_field(object, "x", -100, 100, name, error) &&
+           validate_integer_field(object, "y", -100, 100, name, error) &&
+           validate_integer_field(object, "rotation", 0, 3600, name, error) &&
+           validate_integer_field(object, "weight", 0, 100, name, error) &&
+           validate_integer_field(object, "size", -100, 100, name, error);
+}
+
+bool validate_avatar_command(ArduinoJson::JsonVariantConst params, std::string& error)
+{
+    if (!params.is<ArduinoJson::JsonObjectConst>()) {
+        error = "avatar.update params must be an object";
+        return false;
+    }
+
+    auto object = params.as<ArduinoJson::JsonObjectConst>();
+    auto left_eye = object["leftEye"];
+    auto right_eye = object["rightEye"];
+    auto mouth = object["mouth"];
+    if (left_eye.isNull() && right_eye.isNull() && mouth.isNull()) {
+        error = "avatar.update requires leftEye, rightEye, or mouth";
+        return false;
+    }
+    if (!left_eye.isNull() && !validate_feature_command(left_eye, "leftEye", error)) {
+        return false;
+    }
+    if (!right_eye.isNull() && !validate_feature_command(right_eye, "rightEye", error)) {
+        return false;
+    }
+    if (!mouth.isNull() && !validate_feature_command(mouth, "mouth", error)) {
+        return false;
+    }
+    return true;
+}
+
+bool is_hex_color(const char* color)
+{
+    if (color == nullptr || std::strlen(color) != 7 || color[0] != '#') {
+        return false;
+    }
+    for (size_t index = 1; index < 7; ++index) {
+        if (std::isxdigit(static_cast<unsigned char>(color[index])) == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool validate_lights_command(ArduinoJson::JsonVariantConst params, std::string& error)
+{
+    if (!params.is<ArduinoJson::JsonObjectConst>()) {
+        error = "lights.update params must be an object";
+        return false;
+    }
+
+    auto object = params.as<ArduinoJson::JsonObjectConst>();
+    const char* color_keys[] = {"leftRgbColor", "rightRgbColor"};
+    const char* duration_keys[] = {"leftRgbDuration", "rightRgbDuration"};
+    bool has_supported_field = false;
+
+    for (const char* key : color_keys) {
+        auto value = object[key];
+        if (value.isNull()) {
+            continue;
+        }
+        has_supported_field = true;
+        if (!value.is<const char*>() || !is_hex_color(value.as<const char*>())) {
+            error = std::string(key) + " must use #RRGGBB format";
+            return false;
+        }
+    }
+
+    for (const char* key : duration_keys) {
+        auto value = object[key];
+        if (value.isNull()) {
+            continue;
+        }
+        has_supported_field = true;
+        if (!value.is<float>() && !value.is<int>()) {
+            error = std::string(key) + " must be numeric";
+            return false;
+        }
+        const float duration = value.as<float>();
+        if (duration < 0.0f || duration > 10.0f) {
+            error = std::string(key) + " must be between 0 and 10 seconds";
+            return false;
+        }
+    }
+
+    if (!has_supported_field) {
+        error = "lights.update contains no supported fields";
+        return false;
+    }
+    return true;
+}
+
 bool validate_servo_command(
     ArduinoJson::JsonVariantConst value,
     const char* name,
@@ -66,6 +215,10 @@ bool validate_servo_command(
         error = std::string(name) + " angle must be an integer in tenths of a degree";
         return false;
     }
+    if (!object["speed"].is<int>()) {
+        error = std::string(name) + " speed must be an integer between 0 and 1000";
+        return false;
+    }
 
     const int angle = object["angle"].as<int>();
     if (angle < minimum_angle || angle > maximum_angle) {
@@ -73,16 +226,10 @@ bool validate_servo_command(
         return false;
     }
 
-    if (!object["speed"].isNull()) {
-        if (!object["speed"].is<int>()) {
-            error = std::string(name) + " speed must be an integer";
-            return false;
-        }
-        const int speed = object["speed"].as<int>();
-        if (speed < kSpeedMin || speed > kSpeedMax) {
-            error = std::string(name) + " speed must be between 0 and 1000";
-            return false;
-        }
+    const int speed = object["speed"].as<int>();
+    if (speed < kSpeedMin || speed > kSpeedMax) {
+        error = std::string(name) + " speed must be between 0 and 1000";
+        return false;
     }
     return true;
 }
@@ -202,8 +349,8 @@ void ExternalControlService::handle_line(const std::string& line)
     }
 
     ArduinoJson::JsonDocument document;
-    auto error = ArduinoJson::deserializeJson(document, json_line);
-    if (error) {
+    auto parse_error = ArduinoJson::deserializeJson(document, json_line);
+    if (parse_error) {
         send_event("", "failed", "invalid JSON");
         return;
     }
@@ -225,6 +372,9 @@ void ExternalControlService::handle_line(const std::string& line)
         auto result = response["result"].to<ArduinoJson::JsonObject>();
         result["protocol_version"] = "1.0";
         result["firmware_extension"] = "agenticforge-external-control";
+        result["firmware_extension_version"] = kExtensionVersion;
+        result["upstream_firmware_version"] = common::FirmwareVersion.data();
+        result["board"] = BOARD_NAME;
         result["transport"] = "usb_serial_jtag";
         result["native_angle_unit"] = "tenths_of_a_degree";
         auto capabilities = result["capabilities"].to<ArduinoJson::JsonArray>();
@@ -307,8 +457,9 @@ void ExternalControlService::handle_line(const std::string& line)
     }
 
     if (method == "avatar.update") {
-        if (!params.is<ArduinoJson::JsonObjectConst>()) {
-            send_event(id, "failed", "avatar.update params must be an object");
+        std::string validation_error;
+        if (!validate_avatar_command(params, validation_error)) {
+            send_event(id, "failed", validation_error.c_str());
             return;
         }
         send_event(id, "accepted");
@@ -319,8 +470,9 @@ void ExternalControlService::handle_line(const std::string& line)
     }
 
     if (method == "lights.update") {
-        if (!params.is<ArduinoJson::JsonObjectConst>()) {
-            send_event(id, "failed", "lights.update params must be an object");
+        std::string validation_error;
+        if (!validate_lights_command(params, validation_error)) {
+            send_event(id, "failed", validation_error.c_str());
             return;
         }
         send_event(id, "accepted");
