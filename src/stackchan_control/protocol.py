@@ -10,7 +10,7 @@ import json
 import struct
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any
+from typing import cast
 
 _HEADER = struct.Struct(">BI")
 
@@ -51,9 +51,9 @@ class Packet:
     data_type: DataType
     payload: bytes
 
-    def json(self) -> Any:
+    def json(self) -> object:
         """Decode a JSON payload."""
-        return json.loads(self.payload.decode("utf-8"))
+        return cast(object, json.loads(self.payload.decode("utf-8")))
 
 
 def encode_packet(data_type: DataType, payload: bytes = b"") -> bytes:
@@ -63,7 +63,7 @@ def encode_packet(data_type: DataType, payload: bytes = b"") -> bytes:
     return _HEADER.pack(int(data_type), len(payload)) + payload
 
 
-def encode_json_packet(data_type: DataType, value: Any) -> bytes:
+def encode_json_packet(data_type: DataType, value: object) -> bytes:
     """Encode compact deterministic JSON in a stock WebSocket binary frame."""
     payload = json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return encode_packet(data_type, payload)
