@@ -26,6 +26,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          source /opt/esp/idf/export.sh
           idf.py build 2>&1 | tee firmware-build.log
       - name: Upload build log
         if: always()
