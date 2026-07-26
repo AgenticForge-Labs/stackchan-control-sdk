@@ -61,6 +61,7 @@ def run_probe(
         "timestamp": datetime.now(UTC).isoformat(),
         "port": client.port,
         "allow_motion": allow_motion,
+        "native_angle_unit": "tenths_of_a_degree",
         "tests": [],
     }
 
@@ -100,8 +101,12 @@ def run_probe(
     )
     initial_state = initial_summary.get("result")
     avatar_state = initial_state.get("avatar") if isinstance(initial_state, dict) else None
-    initial_yaw = initial_state.get("yaw_angle") if isinstance(initial_state, dict) else None
-    initial_pitch = initial_state.get("pitch_angle") if isinstance(initial_state, dict) else None
+    initial_yaw = (
+        initial_state.get("yaw_angle_tenths") if isinstance(initial_state, dict) else None
+    )
+    initial_pitch = (
+        initial_state.get("pitch_angle_tenths") if isinstance(initial_state, dict) else None
+    )
 
     if isinstance(avatar_state, dict):
         left_eye = _feature_payload(avatar_state.get("leftEye"))
@@ -184,30 +189,30 @@ def run_probe(
                 "motion.update",
                 {
                     "yawServo": {"angle": 0, "speed": 120},
-                    "pitchServo": {"angle": 45, "speed": 120},
+                    "pitchServo": {"angle": 450, "speed": 120},
                 },
             ),
-            "Did StackChan move smoothly to a centered, mid-height pose?",
+            "Did StackChan move smoothly to a centered, 45-degree pitch pose?",
         )
         test(
             "yaw_small_range",
             lambda: motion_steps(
                 [
                     {
-                        "yawServo": {"angle": -12, "speed": 100},
-                        "pitchServo": {"angle": 45, "speed": 100},
+                        "yawServo": {"angle": -120, "speed": 100},
+                        "pitchServo": {"angle": 450, "speed": 100},
                     },
                     {
-                        "yawServo": {"angle": 12, "speed": 100},
-                        "pitchServo": {"angle": 45, "speed": 100},
+                        "yawServo": {"angle": 120, "speed": 100},
+                        "pitchServo": {"angle": 450, "speed": 100},
                     },
                     {
                         "yawServo": {"angle": 0, "speed": 100},
-                        "pitchServo": {"angle": 45, "speed": 100},
+                        "pitchServo": {"angle": 450, "speed": 100},
                     },
                 ]
             ),
-            "Did the head sweep a small left-right range and return to center?",
+            "Did the head sweep approximately 12 degrees left and right?",
         )
         test(
             "pitch_small_range",
@@ -215,19 +220,19 @@ def run_probe(
                 [
                     {
                         "yawServo": {"angle": 0, "speed": 100},
-                        "pitchServo": {"angle": 35, "speed": 100},
+                        "pitchServo": {"angle": 350, "speed": 100},
                     },
                     {
                         "yawServo": {"angle": 0, "speed": 100},
-                        "pitchServo": {"angle": 55, "speed": 100},
+                        "pitchServo": {"angle": 550, "speed": 100},
                     },
                     {
                         "yawServo": {"angle": 0, "speed": 100},
-                        "pitchServo": {"angle": 45, "speed": 100},
+                        "pitchServo": {"angle": 450, "speed": 100},
                     },
                 ]
             ),
-            "Did the head make a small vertical sweep without binding or vibration?",
+            "Did the head sweep from approximately 35 to 55 degrees without binding?",
         )
         if isinstance(initial_yaw, int) and isinstance(initial_pitch, int):
             test(
