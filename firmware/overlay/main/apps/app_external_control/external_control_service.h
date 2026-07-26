@@ -23,6 +23,7 @@ private:
 
     bool _available = false;
     bool _owns_driver = false;
+    bool _discard_until_newline = false;
     std::string _receive_buffer;
     std::string _motion_command_id;
     bool _motion_seen_moving = false;
