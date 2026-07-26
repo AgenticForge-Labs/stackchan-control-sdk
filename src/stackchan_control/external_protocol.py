@@ -41,10 +41,7 @@ def encode_command(
 
 
 def decode_event_line(line: str | bytes) -> ExternalEvent | None:
-    if isinstance(line, bytes):
-        text = line.decode("utf-8", errors="replace")
-    else:
-        text = line
+    text = line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line
     text = text.strip()
     if not text.startswith(PREFIX):
         return None
