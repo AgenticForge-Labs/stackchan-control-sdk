@@ -69,6 +69,8 @@ def run_probe(
         name: str,
         action: Callable[[], list[ExternalEvent]],
         observation: str | None = None,
+        *,
+        stop_on_failure: bool = False,
     ) -> None:
         entry: dict[str, Any] = {"name": name}
         try:
@@ -79,6 +81,13 @@ def run_probe(
         except Exception as exc:  # capability report must continue after one failure
             entry["command_status"] = "fail"
             entry["error"] = str(exc)
+            if stop_on_failure:
+                try:
+                    entry["safety_stop"] = _result(
+                        client.request("system.stop", timeout=2.0)
+                    )
+                except Exception as stop_exc:
+                    entry["safety_stop_error"] = str(stop_exc)
         report["tests"].append(entry)
 
     def motion_steps(steps: list[dict[str, Any]]) -> list[ExternalEvent]:
@@ -90,15 +99,27 @@ def run_probe(
 
     test("hello", lambda: client.request("system.hello"))
 
-    initial_events = client.request("system.state")
-    initial_summary = _result(initial_events)
-    report["tests"].append(
-        {
-            "name": "state_initial",
-            "command_status": "pass",
-            **initial_summary,
-        }
-    )
+    try:
+        initial_events = client.request("system.state")
+        initial_summary = _result(initial_events)
+        report["tests"].append(
+            {
+                "name": "state_initial",
+                "command_status": "pass",
+                **initial_summary,
+            }
+        )
+    except Exception as exc:
+        report["tests"].append(
+            {
+                "name": "state_initial",
+                "command_status": "fail",
+                "error": str(exc),
+                "reason": "state is required for reversible hardware testing",
+            }
+        )
+        return report
+
     initial_state = initial_summary.get("result")
     avatar_state = initial_state.get("avatar") if isinstance(initial_state, dict) else None
     initial_yaw = (
@@ -193,6 +214,7 @@ def run_probe(
                 },
             ),
             "Did StackChan move smoothly to a centered, 45-degree pitch pose?",
+            stop_on_failure=True,
         )
         test(
             "yaw_small_range",
@@ -213,6 +235,7 @@ def run_probe(
                 ]
             ),
             "Did the head sweep approximately 12 degrees left and right?",
+            stop_on_failure=True,
         )
         test(
             "pitch_small_range",
@@ -233,6 +256,7 @@ def run_probe(
                 ]
             ),
             "Did the head sweep from approximately 35 to 55 degrees without binding?",
+            stop_on_failure=True,
         )
         if isinstance(initial_yaw, int) and isinstance(initial_pitch, int):
             test(
@@ -245,6 +269,7 @@ def run_probe(
                     },
                 ),
                 "Did StackChan return to its initial pose?",
+                stop_on_failure=True,
             )
     else:
         report["tests"].append(
@@ -260,8 +285,8 @@ def run_probe(
             "name": "native_animation",
             "command_status": "skipped",
             "reason": (
-                "gated until complete current face and servo keyframes are captured "
-                "from retail hardware"
+                "gated until complete current face, servo, and RGB keyframes are "
+                "captured from retail hardware"
             ),
         }
     )
@@ -307,7 +332,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
-    failures = [item for item in report["tests"] if item.get("command_status") == "fail"]
+    failures = [
+        item
+        for item in report["tests"]
+        if item.get("command_status") == "fail" or item.get("observation") == "fail"
+    ]
     return 1 if failures else 0
 
 
