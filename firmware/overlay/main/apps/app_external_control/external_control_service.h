@@ -24,8 +24,6 @@ private:
     bool _available = false;
     bool _owns_driver = false;
     std::string _receive_buffer;
-    int _animation_modifier_id = -1;
-    std::string _animation_command_id;
     std::string _motion_command_id;
     bool _motion_seen_moving = false;
     uint32_t _motion_started_ms = 0;
