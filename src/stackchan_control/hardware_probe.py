@@ -100,6 +100,8 @@ def run_probe(
     )
     initial_state = initial_summary.get("result")
     avatar_state = initial_state.get("avatar") if isinstance(initial_state, dict) else None
+    initial_yaw = initial_state.get("yaw_angle") if isinstance(initial_state, dict) else None
+    initial_pitch = initial_state.get("pitch_angle") if isinstance(initial_state, dict) else None
 
     if isinstance(avatar_state, dict):
         left_eye = _feature_payload(avatar_state.get("leftEye"))
@@ -162,6 +164,18 @@ def run_probe(
         ),
         "Did the left and right lights change to different colors?",
     )
+    test(
+        "lights_off",
+        lambda: client.request(
+            "lights.update",
+            {
+                "leftRgbColor": "#000000",
+                "rightRgbColor": "#000000",
+                "leftRgbDuration": 0.2,
+                "rightRgbDuration": 0.2,
+            },
+        ),
+    )
 
     if allow_motion:
         test(
@@ -215,6 +229,18 @@ def run_probe(
             ),
             "Did the head make a small vertical sweep without binding or vibration?",
         )
+        if isinstance(initial_yaw, int) and isinstance(initial_pitch, int):
+            test(
+                "motion_restore",
+                lambda: client.request(
+                    "motion.update",
+                    {
+                        "yawServo": {"angle": initial_yaw, "speed": 100},
+                        "pitchServo": {"angle": initial_pitch, "speed": 100},
+                    },
+                ),
+                "Did StackChan return to its initial pose?",
+            )
     else:
         report["tests"].append(
             {
