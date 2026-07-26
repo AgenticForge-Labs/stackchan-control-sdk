@@ -5,12 +5,10 @@
  */
 #include "external_control_service.h"
 #include <ArduinoJson.hpp>
-#include <apps/common/common.h>
 #include <driver/usb_serial_jtag.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <hal/hal.h>
-#include <memory>
 #include <stackchan/stackchan.h>
 
 namespace agenticforge {
@@ -130,10 +128,11 @@ void ExternalControlService::handle_line(const std::string& line)
         capabilities.add("avatar.update");
         capabilities.add("motion.update");
         capabilities.add("lights.update");
-        capabilities.add("animation.play");
         capabilities.add("animation.stop");
         capabilities.add("system.state");
         capabilities.add("system.stop");
+        auto gated = result["gated_capabilities"].to<ArduinoJson::JsonArray>();
+        gated.add("animation.play.complete_keyframes");
         std::string output;
         ArduinoJson::serializeJson(response, output);
         write_json(output);
@@ -155,7 +154,7 @@ void ExternalControlService::handle_line(const std::string& line)
         result["pitch_angle"] = motion.pitchServo().getCurrentAngle();
         result["yaw_moving"] = motion.yawServo().isMoving();
         result["pitch_moving"] = motion.pitchServo().isMoving();
-        result["animation_active"] = _animation_modifier_id >= 0;
+        result["animation_active"] = false;
         std::string output;
         ArduinoJson::serializeJson(response, output);
         write_json(output);
@@ -192,28 +191,14 @@ void ExternalControlService::handle_line(const std::string& line)
     }
 
     if (method == "animation.play") {
-        auto frames = params["frames"];
-        auto payload = json_value_to_string(frames);
-        auto sequence = stackchan::animation::parse_sequence_from_json(payload.c_str());
-        if (sequence.empty()) {
-            send_event(id, "failed", "frames must contain at least one valid keyframe");
-            return;
-        }
-        if (_animation_modifier_id >= 0) {
-            GetStackChan().removeModifier(_animation_modifier_id);
-        }
-        _animation_modifier_id = GetStackChan().addModifier(
-            std::make_unique<stackchan::DanceModifier>(sequence));
-        _animation_command_id = id;
+        send_event(
+            id,
+            "failed",
+            "animation.play is gated until complete retail keyframes are captured");
         return;
     }
 
     if (method == "animation.stop") {
-        if (_animation_modifier_id >= 0) {
-            GetStackChan().removeModifier(_animation_modifier_id);
-            _animation_modifier_id = -1;
-            _animation_command_id.clear();
-        }
         send_event(id, "completed");
         return;
     }
@@ -236,27 +221,16 @@ void ExternalControlService::update_completions()
             _motion_seen_moving = false;
         }
     }
-
-    if (_animation_modifier_id >= 0 &&
-        GetStackChan().getModifier(_animation_modifier_id) == nullptr) {
-        send_event(_animation_command_id, "completed");
-        _animation_modifier_id = -1;
-        _animation_command_id.clear();
-    }
 }
 
 void ExternalControlService::stop_all()
 {
-    auto& stackchan = GetStackChan();
-    if (_animation_modifier_id >= 0) {
-        stackchan.removeModifier(_animation_modifier_id);
-        _animation_modifier_id = -1;
-    }
-    _animation_command_id.clear();
     _motion_command_id.clear();
+    _motion_seen_moving = false;
 
-    auto& yaw = stackchan.motion().yawServo();
-    auto& pitch = stackchan.motion().pitchServo();
+    auto& motion = GetStackChan().motion();
+    auto& yaw = motion.yawServo();
+    auto& pitch = motion.pitchServo();
     yaw.rotate(0);
     yaw.move(yaw.getCurrentAngle());
     pitch.move(pitch.getCurrentAngle());
