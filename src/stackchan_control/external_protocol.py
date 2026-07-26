@@ -36,7 +36,8 @@ def encode_command(
         "method": method,
         "params": params or {},
     }
-    return identifier, (PREFIX + json.dumps(payload, separators=(",", ":")) + "\n").encode()
+    serialized = json.dumps(payload, separators=(",", ":"))
+    return identifier, (PREFIX + serialized + "\n").encode()
 
 
 def decode_event_line(line: str | bytes) -> ExternalEvent | None:
@@ -51,14 +52,19 @@ def decode_event_line(line: str | bytes) -> ExternalEvent | None:
         value = json.loads(text[len(PREFIX) :])
     except json.JSONDecodeError as exc:
         raise ExternalProtocolError("invalid JSON event") from exc
-    if not isinstance(value, dict) or not isinstance(value.get("event"), str):
+    if not isinstance(value, dict):
+        raise ExternalProtocolError("event line must contain an object")
+    event = value.get("event")
+    if not isinstance(event, str):
         raise ExternalProtocolError("event line must contain an event string")
     result = value.get("result")
     if result is not None and not isinstance(result, dict):
         raise ExternalProtocolError("result must be an object")
+    command_id = value.get("id")
+    detail = value.get("detail")
     return ExternalEvent(
-        event=value["event"],
-        command_id=value.get("id") if isinstance(value.get("id"), str) else None,
-        detail=value.get("detail") if isinstance(value.get("detail"), str) else None,
+        event=event,
+        command_id=command_id if isinstance(command_id, str) else None,
+        detail=detail if isinstance(detail, str) else None,
         result=result,
     )
