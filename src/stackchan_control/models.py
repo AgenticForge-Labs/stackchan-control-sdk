@@ -36,16 +36,16 @@ class FeatureUpdate:
 
     def to_dict(self) -> FeatureDict:
         result: FeatureDict = {}
-        values = {
-            "x": self.x,
-            "y": self.y,
-            "rotation": self.rotation,
-            "weight": self.weight,
-            "size": self.size,
-        }
-        for key, value in values.items():
-            if value is not None:
-                result[key] = value  # type: ignore[literal-required]
+        if self.x is not None:
+            result["x"] = self.x
+        if self.y is not None:
+            result["y"] = self.y
+        if self.rotation is not None:
+            result["rotation"] = self.rotation
+        if self.weight is not None:
+            result["weight"] = self.weight
+        if self.size is not None:
+            result["size"] = self.size
         return result
 
 
