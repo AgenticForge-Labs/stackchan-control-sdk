@@ -12,10 +12,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .external_protocol import ExternalEvent
 from .serial_client import SerialControlClient, candidate_ports
 
 
-def _result(events: list[Any]) -> dict[str, Any]:
+def _result(events: list[ExternalEvent]) -> dict[str, Any]:
     terminal = events[-1]
     return {
         "events": [asdict(event) for event in events],
@@ -28,7 +29,8 @@ def _observe(prompt: str, *, no_prompt: bool) -> str:
         return "not_observed"
     response = input(f"{prompt} [y/n/skip]: ").strip().lower()
     return {"y": "pass", "yes": "pass", "n": "fail", "no": "fail"}.get(
-        response, "skipped"
+        response,
+        "skipped",
     )
 
 
@@ -45,7 +47,11 @@ def run_probe(
         "tests": [],
     }
 
-    def test(name: str, action: Callable[[], list[Any]], observation: str | None = None) -> None:
+    def test(
+        name: str,
+        action: Callable[[], list[ExternalEvent]],
+        observation: str | None = None,
+    ) -> None:
         entry: dict[str, Any] = {"name": name}
         try:
             entry.update(_result(action()))
@@ -57,6 +63,13 @@ def run_probe(
             entry["error"] = str(exc)
         report["tests"].append(entry)
 
+    def motion_steps(steps: list[dict[str, Any]]) -> list[ExternalEvent]:
+        events: list[ExternalEvent] = []
+        for params in steps:
+            events.extend(client.request("motion.update", params))
+            time.sleep(0.25)
+        return events
+
     test("hello", lambda: client.request("system.hello"))
     test("state_initial", lambda: client.request("system.state"))
     test(
@@ -64,8 +77,8 @@ def run_probe(
         lambda: client.request(
             "avatar.update",
             {
-                "leftEye": {"x": -8, "rotation": -8, "size": 105},
-                "rightEye": {"x": 8, "rotation": 8, "size": 105},
+                "leftEye": {"rotation": -8, "size": 105},
+                "rightEye": {"rotation": 8, "size": 105},
                 "mouth": {"size": 120, "weight": 80},
             },
         ),
@@ -77,8 +90,8 @@ def run_probe(
         lambda: client.request(
             "avatar.update",
             {
-                "leftEye": {"x": 0, "rotation": 0, "size": 100},
-                "rightEye": {"x": 0, "rotation": 0, "size": 100},
+                "leftEye": {"rotation": 0, "size": 100},
+                "rightEye": {"rotation": 0, "size": 100},
                 "mouth": {"size": 100, "weight": 100},
             },
         ),
@@ -111,31 +124,41 @@ def run_probe(
         )
         test(
             "yaw_small_range",
-            lambda: client.request(
-                "animation.play",
-                {
-                    "frames": [
-                        {"yawServo": {"angle": -12, "speed": 100}, "durationMs": 450},
-                        {"yawServo": {"angle": 12, "speed": 100}, "durationMs": 450},
-                        {"yawServo": {"angle": 0, "speed": 100}, "durationMs": 450},
-                    ]
-                },
-                timeout=12,
+            lambda: motion_steps(
+                [
+                    {
+                        "yawServo": {"angle": -12, "speed": 100},
+                        "pitchServo": {"angle": 45, "speed": 100},
+                    },
+                    {
+                        "yawServo": {"angle": 12, "speed": 100},
+                        "pitchServo": {"angle": 45, "speed": 100},
+                    },
+                    {
+                        "yawServo": {"angle": 0, "speed": 100},
+                        "pitchServo": {"angle": 45, "speed": 100},
+                    },
+                ]
             ),
             "Did the head sweep a small left-right range and return to center?",
         )
         test(
             "pitch_small_range",
-            lambda: client.request(
-                "animation.play",
-                {
-                    "frames": [
-                        {"pitchServo": {"angle": 35, "speed": 100}, "durationMs": 450},
-                        {"pitchServo": {"angle": 55, "speed": 100}, "durationMs": 450},
-                        {"pitchServo": {"angle": 45, "speed": 100}, "durationMs": 450},
-                    ]
-                },
-                timeout=12,
+            lambda: motion_steps(
+                [
+                    {
+                        "yawServo": {"angle": 0, "speed": 100},
+                        "pitchServo": {"angle": 35, "speed": 100},
+                    },
+                    {
+                        "yawServo": {"angle": 0, "speed": 100},
+                        "pitchServo": {"angle": 55, "speed": 100},
+                    },
+                    {
+                        "yawServo": {"angle": 0, "speed": 100},
+                        "pitchServo": {"angle": 45, "speed": 100},
+                    },
+                ]
             ),
             "Did the head make a small vertical sweep without binding or vibration?",
         )
@@ -144,10 +167,20 @@ def run_probe(
             {
                 "name": "motion_tests",
                 "command_status": "skipped",
-                "reason": "rerun with --allow-motion after visual inspection of the mechanism",
+                "reason": "rerun with --allow-motion after inspecting the mechanism",
             }
         )
 
+    report["tests"].append(
+        {
+            "name": "native_animation",
+            "command_status": "skipped",
+            "reason": (
+                "gated until complete current face and servo keyframes are captured "
+                "from retail hardware"
+            ),
+        }
+    )
     test("state_final", lambda: client.request("system.state"))
     test("stop", lambda: client.request("system.stop"))
     return report
