@@ -14,10 +14,11 @@ PITCH_MAX_TENTHS: Final = 870
 
 
 def degrees_to_native_angle(degrees: float) -> int:
-    """Convert degrees to M5Stack's integer tenths-of-a-degree representation."""
+    """Convert degrees to native tenths using half-away-from-zero rounding."""
     if not math.isfinite(degrees):
         raise ValueError("degrees must be finite")
-    return int(round(degrees * NATIVE_ANGLE_UNITS_PER_DEGREE))
+    scaled = degrees * NATIVE_ANGLE_UNITS_PER_DEGREE
+    return math.floor(scaled + 0.5) if scaled >= 0 else math.ceil(scaled - 0.5)
 
 
 def native_angle_to_degrees(angle_tenths: int) -> float:
