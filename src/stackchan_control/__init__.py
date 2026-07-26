@@ -3,6 +3,7 @@
 from .client import StackChan
 from .models import AvatarUpdate, FeatureUpdate, Keyframe, MotionUpdate, ServoUpdate
 from .protocol import DataType, Packet, decode_packet, encode_packet
+from .units import degrees_to_native_angle, native_angle_to_degrees
 
 __all__ = [
     "AvatarUpdate",
@@ -14,7 +15,9 @@ __all__ = [
     "ServoUpdate",
     "StackChan",
     "decode_packet",
+    "degrees_to_native_angle",
     "encode_packet",
+    "native_angle_to_degrees",
 ]
 
 __version__ = "0.1.0"
