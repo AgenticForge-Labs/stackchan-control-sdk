@@ -20,4 +20,4 @@ __all__ = [
     "native_angle_to_degrees",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
