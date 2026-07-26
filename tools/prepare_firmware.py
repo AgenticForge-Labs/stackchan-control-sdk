@@ -84,7 +84,16 @@ def prepare(workspace: Path, *, refresh: bool) -> Path:
         shutil.rmtree(checkout)
 
     if not checkout.exists():
-        run(["git", "clone", "--filter=blob:none", "--no-checkout", repository, str(checkout)])
+        run(
+            [
+                "git",
+                "clone",
+                "--filter=blob:none",
+                "--no-checkout",
+                repository,
+                str(checkout),
+            ]
+        )
 
     run(["git", "fetch", "--depth", "1", "origin", commit], cwd=checkout)
     run(["git", "checkout", "--force", commit], cwd=checkout)
@@ -107,9 +116,15 @@ def parse_args() -> argparse.Namespace:
         default=ROOT / ".firmware-worktree",
         help="directory used for the pinned upstream checkout",
     )
-    parser.add_argument("--refresh", action="store_true", help="delete and recreate the checkout")
     parser.add_argument(
-        "--build", action="store_true", help="fetch dependencies and run idf.py build"
+        "--refresh",
+        action="store_true",
+        help="delete and recreate the checkout",
+    )
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help="fetch dependencies and run idf.py build",
     )
     return parser.parse_args()
 
