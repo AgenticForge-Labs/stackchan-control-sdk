@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stackchan-control"
+version = "0.2.0"
+description = "Host-side protocol and control SDK for M5Stack StackChan"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "AgenticForge Labs" }]
+keywords = ["stackchan", "m5stack", "robotics", "puppeteering"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+]
+dependencies = []
+
+[project.optional-dependencies]
+websocket = ["websockets>=13,<16"]
+serial = ["pyserial>=3.5,<4"]
+dev = [
+  "mypy>=1.11",
+  "pytest>=8.3",
+  "ruff>=0.9",
+  "websockets>=13,<16",
+  "pyserial>=3.5,<4",
+]
+
+[project.scripts]
+stackchan-probe = "stackchan_control.hardware_probe:main"
+
+[project.urls]
+Repository = "https://github.com/AgenticForge-Labs/stackchan-control-sdk"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stackchan_control"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/stackchan_control"]
+
+[[tool.mypy.overrides]]
+module = ["serial", "serial.*"]
+ignore_missing_imports = true

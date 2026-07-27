@@ -1,0 +1,217 @@
+"""Typed representations of StackChan's native JSON controls."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TypedDict
+
+
+class FeatureDict(TypedDict, total=False):
+    x: int
+    y: int
+    rotation: int
+    weight: int
+    size: int
+
+
+class SpringDict(TypedDict, total=False):
+    stiffness: float
+    damping: float
+
+
+class ServoDict(TypedDict, total=False):
+    angle: int
+    speed: int
+    rotate: int
+    spring: SpringDict
+
+
+def _is_hex_color(value: str) -> bool:
+    return len(value) == 7 and value.startswith("#") and all(
+        character in "0123456789abcdefABCDEF" for character in value[1:]
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureUpdate:
+    """Native avatar feature values.
+
+    Position and size ranges are -100..100, rotation is 0..3600, and weight
+    is 0..100. Position changes require both ``x`` and ``y`` because that is
+    how the upstream firmware parser applies them.
+    """
+
+    x: int | None = None
+    y: int | None = None
+    rotation: int | None = None
+    weight: int | None = None
+    size: int | None = None
+
+    def __post_init__(self) -> None:
+        if (self.x is None) != (self.y is None):
+            raise ValueError("x and y must be supplied together")
+        for name, value in (("x", self.x), ("y", self.y), ("size", self.size)):
+            if value is not None and not -100 <= value <= 100:
+                raise ValueError(f"{name} must be between -100 and 100")
+        if self.rotation is not None and not 0 <= self.rotation <= 3600:
+            raise ValueError("rotation must be between 0 and 3600")
+        if self.weight is not None and not 0 <= self.weight <= 100:
+            raise ValueError("weight must be between 0 and 100")
+
+    def is_complete(self) -> bool:
+        return all(
+            value is not None
+            for value in (self.x, self.y, self.rotation, self.weight, self.size)
+        )
+
+    def to_dict(self) -> FeatureDict:
+        result: FeatureDict = {}
+        if self.x is not None:
+            result["x"] = self.x
+        if self.y is not None:
+            result["y"] = self.y
+        if self.rotation is not None:
+            result["rotation"] = self.rotation
+        if self.weight is not None:
+            result["weight"] = self.weight
+        if self.size is not None:
+            result["size"] = self.size
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class ServoUpdate:
+    """Native servo command.
+
+    ``angle`` uses the upstream firmware's integer tenths-of-a-degree units.
+    Use :meth:`StackChan.set_pose` for a degree-based convenience API.
+    """
+
+    angle: int | None = None
+    speed: int | None = None
+    rotate: int | None = None
+    stiffness: float | None = None
+    damping: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.rotate is not None and self.angle is not None:
+            raise ValueError("rotate and angle are mutually exclusive")
+        if self.speed is not None and self.angle is None:
+            raise ValueError("speed requires angle")
+        if (self.stiffness is not None or self.damping is not None) and self.angle is None:
+            raise ValueError("spring parameters require angle")
+        if self.speed is not None and (self.stiffness is not None or self.damping is not None):
+            raise ValueError("speed and spring parameters select different firmware motion modes")
+        if self.speed is not None and not 0 <= self.speed <= 1000:
+            raise ValueError("speed must be between 0 and 1000")
+        if self.rotate is not None and not -1000 <= self.rotate <= 1000:
+            raise ValueError("rotate must be between -1000 and 1000")
+
+    def is_complete_position(self) -> bool:
+        return (
+            self.angle is not None
+            and self.speed is not None
+            and self.rotate is None
+            and self.stiffness is None
+            and self.damping is None
+        )
+
+    def to_dict(self) -> ServoDict:
+        result: ServoDict = {}
+        if self.rotate is not None:
+            result["rotate"] = self.rotate
+            return result
+        if self.angle is not None:
+            result["angle"] = self.angle
+        if self.speed is not None:
+            result["speed"] = self.speed
+        spring: SpringDict = {}
+        if self.stiffness is not None:
+            spring["stiffness"] = self.stiffness
+        if self.damping is not None:
+            spring["damping"] = self.damping
+        if spring:
+            result["spring"] = spring
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class AvatarUpdate:
+    left_eye: FeatureUpdate | None = None
+    right_eye: FeatureUpdate | None = None
+    mouth: FeatureUpdate | None = None
+
+    def to_dict(self) -> dict[str, FeatureDict]:
+        result: dict[str, FeatureDict] = {}
+        if self.left_eye is not None:
+            result["leftEye"] = self.left_eye.to_dict()
+        if self.right_eye is not None:
+            result["rightEye"] = self.right_eye.to_dict()
+        if self.mouth is not None:
+            result["mouth"] = self.mouth.to_dict()
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class MotionUpdate:
+    yaw: ServoUpdate | None = None
+    pitch: ServoUpdate | None = None
+
+    def to_dict(self) -> dict[str, ServoDict]:
+        result: dict[str, ServoDict] = {}
+        if self.yaw is not None:
+            result["yawServo"] = self.yaw.to_dict()
+        if self.pitch is not None:
+            result["pitchServo"] = self.pitch.to_dict()
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class Keyframe:
+    duration_ms: int
+    left_eye: FeatureUpdate | None = None
+    right_eye: FeatureUpdate | None = None
+    mouth: FeatureUpdate | None = None
+    yaw: ServoUpdate | None = None
+    pitch: ServoUpdate | None = None
+    left_rgb_color: str | None = None
+    right_rgb_color: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.duration_ms < 0:
+            raise ValueError("duration_ms must be non-negative")
+        for name, color in (
+            ("left_rgb_color", self.left_rgb_color),
+            ("right_rgb_color", self.right_rgb_color),
+        ):
+            if color is not None and not _is_hex_color(color):
+                raise ValueError(f"{name} must use #RRGGBB format")
+
+    def is_complete(self) -> bool:
+        """Return whether every field applied by upstream has an explicit value."""
+        features = (self.left_eye, self.right_eye, self.mouth)
+        servos = (self.yaw, self.pitch)
+        return (
+            all(feature is not None and feature.is_complete() for feature in features)
+            and all(servo is not None and servo.is_complete_position() for servo in servos)
+            and self.left_rgb_color is not None
+            and self.right_rgb_color is not None
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        result: dict[str, object] = {"durationMs": self.duration_ms}
+        if self.left_eye is not None:
+            result["leftEye"] = self.left_eye.to_dict()
+        if self.right_eye is not None:
+            result["rightEye"] = self.right_eye.to_dict()
+        if self.mouth is not None:
+            result["mouth"] = self.mouth.to_dict()
+        if self.yaw is not None:
+            result["yawServo"] = self.yaw.to_dict()
+        if self.pitch is not None:
+            result["pitchServo"] = self.pitch.to_dict()
+        if self.left_rgb_color is not None:
+            result["leftRgbColor"] = self.left_rgb_color
+        if self.right_rgb_color is not None:
+            result["rightRgbColor"] = self.right_rgb_color
+        return result

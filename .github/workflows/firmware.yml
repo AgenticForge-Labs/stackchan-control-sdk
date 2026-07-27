@@ -1,0 +1,50 @@
+name: Firmware overlay
+
+on:
+  pull_request:
+    paths:
+      - "firmware/**"
+      - "tools/prepare_firmware.py"
+      - ".github/workflows/firmware.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container:
+      image: espressif/idf:v5.5.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare pinned upstream firmware
+        run: python3 tools/prepare_firmware.py --workspace "$GITHUB_WORKSPACE/.firmware-worktree"
+      - name: Fetch upstream firmware dependencies
+        working-directory: .firmware-worktree/StackChan/firmware
+        run: python3 ./fetch_repos.py
+      - name: Build firmware
+        working-directory: .firmware-worktree/StackChan/firmware
+        shell: bash
+        run: |
+          set -o pipefail
+          source /opt/esp/idf/export.sh
+          idf.py build 2>&1 | tee firmware-build.log
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-build-log
+          path: .firmware-worktree/StackChan/firmware/firmware-build.log
+      - name: Upload firmware binaries
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stackchan-external-control-firmware
+          path: |
+            .firmware-worktree/StackChan/firmware/build/*.bin
+            .firmware-worktree/StackChan/firmware/build/bootloader/*.bin
+            .firmware-worktree/StackChan/firmware/build/partition_table/*.bin
+            .firmware-worktree/StackChan/firmware/build/flasher_args.json
