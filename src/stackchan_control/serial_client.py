@@ -17,9 +17,7 @@ def candidate_ports() -> list[dict[str, str | bool | None]]:
     try:
         from serial.tools import list_ports
     except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError(
-            "Install stackchan-control[serial] to inspect serial ports"
-        ) from exc
+        raise RuntimeError("Install stackchan-control[serial] to inspect serial ports") from exc
 
     candidates: list[dict[str, str | bool | None]] = []
     for port in list_ports.comports():
@@ -63,9 +61,7 @@ class SerialControlClient:
         try:
             import serial
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise RuntimeError(
-                "Install stackchan-control[serial] to use hardware probing"
-            ) from exc
+            raise RuntimeError("Install stackchan-control[serial] to use hardware probing") from exc
         self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
         self._serial.reset_input_buffer()
 
@@ -81,19 +77,12 @@ class SerialControlClient:
         *,
         timeout: float = 8.0,
     ) -> list[ExternalEvent]:
-        if self._serial is None:
-            raise SerialControlError("serial client is not open")
-        command_id, payload = encode_command(method, params)
-        self._serial.write(payload)
-        self._serial.flush()
+        command_id = self.send_request(method, params)
 
         events: list[ExternalEvent] = []
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            raw = self._serial.readline()
-            if not raw:
-                continue
-            event = decode_event_line(raw)
+            event = self.receive_event()
             if event is None or event.command_id != command_id:
                 continue
             events.append(event)
@@ -103,3 +92,18 @@ class SerialControlClient:
                 return events
         rendered = [asdict(event) for event in events]
         raise SerialControlError(f"timeout waiting for {method}; received {rendered}")
+
+    def send_request(self, method: str, params: dict[str, Any] | None = None) -> str:
+        """Send without waiting, allowing system.stop to interrupt a pending motion."""
+        if self._serial is None:
+            raise SerialControlError("serial client is not open")
+        command_id, payload = encode_command(method, params)
+        self._serial.write(payload)
+        self._serial.flush()
+        return command_id
+
+    def receive_event(self) -> ExternalEvent | None:
+        """Read one event without discarding events belonging to another request."""
+        if self._serial is None:
+            raise SerialControlError("serial client is not open")
+        return decode_event_line(self._serial.readline())
