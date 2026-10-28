@@ -4,7 +4,7 @@ This directory contains an overlay for the public M5Stack StackChan ESP-IDF firm
 
 The overlay and pinned upstream tree complete a full ESP-IDF 5.5.4 build in GitHub Actions. A first retail USB session passed flashing, handshake, face, lights, and bounded
 motion checks on 2026-10-28. See `docs/hardware-capability-test.md` for evidence
-and limits; active-motion cancellation remains unverified.
+and limits, including a successful supervised active-motion cancellation follow-up.
 
 ## What the overlay adds
 

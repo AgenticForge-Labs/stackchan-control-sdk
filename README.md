@@ -33,9 +33,10 @@ This repository now contains the software needed up to the physical-hardware bou
 
 The first retail USB session on 2026-10-28 passed handshake, operator-confirmed
 face and lighting updates, bounded yaw/pitch motion, and visual restoration.
-Matching command completion and idle stop acknowledgments were recorded. This
-is initial hardware evidence: active-motion cancellation, independent positioning
-accuracy, reconnects, and host-loss behavior remain unverified. See
+Matching command completion and stop acknowledgments were recorded, including
+a supervised active-motion cancellation and restoration follow-up. This is
+initial hardware evidence: independent positioning accuracy, reconnects, and
+host-loss behavior remain unverified. See
 [`docs/hardware-capability-test.md`](docs/hardware-capability-test.md).
 
 ## Angle units

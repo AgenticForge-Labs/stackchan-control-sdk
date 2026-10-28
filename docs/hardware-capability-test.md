@@ -170,7 +170,48 @@ separately reviewed bounded test before it is treated as proven. Reconnect and
 host-loss watchdog behavior also remain follow-up work. USB worked throughout
 both staged runs; these results do not justify adding another transport.
 
-Integration status: **awaiting further hardware validation**. No Forge Puppeteer
+Integration status: first-session hardware checks passed; changes await review. No Forge Puppeteer
 integration was started. Organization-wide `architecture.md` and `development.md`
 could not be located; repository architecture and current Puppeteer boundary
 instructions were inspected instead.
+
+
+### Supervised active-stop follow-up
+
+After the operator confirmed readiness, the host revision
+`e64dd7db2184765efe9d39016a8808275defaaa2` added and physically exercised:
+
+```bash
+python tools/verify_active_stop.py --port /dev/ttyACM1 --allow-motion \
+  --output hardware-reports/active-stop.json
+```
+
+This test centers at yaw 0°/pitch 45°, then requests yaw +12° with native speed
+60 and sends `system.stop` 0.2 seconds after acceptance. The native speed field
+maps to spring parameters; it is not a degrees-per-second guarantee. The host
+retains both command identities rather than discarding the cancelled motion
+while waiting for the stop response. No firmware changes or reflashing were needed.
+
+The device emitted motion `accepted`, stop `accepted`, motion `cancelled`, and
+stop `completed`, all with matching request IDs. Stop completion was received
+approximately 0.215 seconds after motion acceptance on the host; this is event
+receipt timing, not an independently measured physical stopping latency.
+The operator confirmed the small movement stopped early and stayed still,
+without chatter or binding. Two state samples 0.7 seconds apart both reported
+yaw −0.9°/pitch 43.4° and both movement flags false. The operator then confirmed
+smooth restoration. Initial/final reported yaw matched at −0.9°; initial pitch
+was 36.8° and final pitch was 37.8°, a 1.0° difference. Exact captured initial
+raw targets were sent for restoration. Absolute positioning/settling accuracy
+remains limited by the native feedback/controller behavior and was not calibrated
+or independently measured during this session.
+
+The active-stop test completes the initial staged hardware validation, including
+stopping, completion identities, and restoration. It does not establish production
+reconnect, host-loss, long-duration reliability, or a positioning tolerance.
+Those remain follow-up work before production orchestration. The earlier
+in-flight-stop limitation above describes the original staged probe; this
+follow-up resolves it for one supervised bounded interruption.
+
+Python validation after the host addition: 26 tests, Ruff, and mypy passed.
+Generated evidence remains under ignored `hardware-reports/`; this document
+contains the source-controlled findings. No Forge Puppeteer integration has begun.
