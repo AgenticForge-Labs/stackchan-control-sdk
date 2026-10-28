@@ -65,6 +65,8 @@ def run_probe(
         "tests": [],
     }
 
+    aborted = False
+
     def test(
         name: str,
         action: Callable[[], list[ExternalEvent]],
@@ -72,20 +74,28 @@ def run_probe(
         *,
         stop_on_failure: bool = False,
     ) -> None:
+        nonlocal aborted
+        if aborted:
+            return
         entry: dict[str, Any] = {"name": name}
         try:
             entry.update(_result(action()))
             entry["command_status"] = "pass"
             if observation:
                 entry["observation"] = _observe(observation, no_prompt=no_prompt)
-        except Exception as exc:  # capability report must continue after one failure
+                if stop_on_failure and entry["observation"] == "fail":
+                    raise RuntimeError("operator reported unsafe or incorrect motion")
+        except (Exception, KeyboardInterrupt) as exc:  # retain evidence and stop on interruption
             entry["command_status"] = "fail"
             entry["error"] = str(exc)
-            if stop_on_failure:
+            if stop_on_failure or isinstance(exc, KeyboardInterrupt):
+                aborted = True
+                report["aborted"] = True
+                report["operator_action"] = (
+                    "Power off before further testing if motion is abnormal or stop is unconfirmed"
+                )
                 try:
-                    entry["safety_stop"] = _result(
-                        client.request("system.stop", timeout=2.0)
-                    )
+                    entry["safety_stop"] = _result(client.request("system.stop", timeout=2.0))
                 except Exception as stop_exc:
                     entry["safety_stop_error"] = str(stop_exc)
         report["tests"].append(entry)
@@ -98,6 +108,8 @@ def run_probe(
         return events
 
     test("hello", lambda: client.request("system.hello"))
+    if aborted or report["tests"][-1]["command_status"] == "fail":
+        return report
 
     try:
         initial_events = client.request("system.state")
@@ -122,9 +134,7 @@ def run_probe(
 
     initial_state = initial_summary.get("result")
     avatar_state = initial_state.get("avatar") if isinstance(initial_state, dict) else None
-    initial_yaw = (
-        initial_state.get("yaw_angle_tenths") if isinstance(initial_state, dict) else None
-    )
+    initial_yaw = initial_state.get("yaw_angle_tenths") if isinstance(initial_state, dict) else None
     initial_pitch = (
         initial_state.get("pitch_angle_tenths") if isinstance(initial_state, dict) else None
     )
@@ -204,6 +214,21 @@ def run_probe(
     )
 
     if allow_motion:
+        if any(
+            item.get("command_status") == "fail" or item.get("observation") == "fail"
+            for item in report["tests"]
+        ):
+            report["aborted"] = True
+            return report
+        if type(initial_yaw) is not int or type(initial_pitch) is not int:
+            report["tests"].append(
+                {
+                    "name": "motion_initial_state",
+                    "command_status": "fail",
+                    "error": "integer initial servo positions are required for restoration",
+                }
+            )
+            return report
         test(
             "neutral_pose",
             lambda: client.request(
@@ -279,6 +304,9 @@ def run_probe(
                 "reason": "rerun with --allow-motion after inspecting the mechanism",
             }
         )
+
+    if aborted:
+        return report
 
     report["tests"].append(
         {

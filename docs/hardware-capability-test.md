@@ -91,3 +91,33 @@ The report determines the next implementation step:
 - complete native state is reliable: construct and test fully populated animation keyframes.
 - avatar JSON differs from the public repository: capture retail payloads and update the models.
 - lights or face fields are incomplete: expand the native capability schema without adding AgenticForge character semantics.
+
+## Workstation preparation — 2026-10-28
+
+Remote `main` was fetched and verified at
+`36207e1be1879dcaa31ba5cae1f7155b65eba3e4`; no open PRs were found.
+The Linux workstation enumerated an Espressif `303a:1001` USB Serial/JTAG
+interface at `/dev/ttyACM1`. This is a candidate device identity, not a
+successful protocol handshake; the physical connector still requires operator
+confirmation. A separate QinHeng serial device must not be used for this probe.
+
+Factory firmware version, calibration/settings, and physical behavior have not
+yet been recorded. No firmware installation or motion is claimed from enumeration.
+Local preparation logs and USB enumeration are retained under ignored
+`hardware-reports/`, along with Python check results. Raw generated reports and
+firmware binaries must remain outside source control.
+
+Official recovery: [M5Stack StackChan documentation](https://docs.m5stack.com/en/StackChan)
+describes restoring the official StackChan image through M5Burner. It also
+describes entering download mode by holding RST for three seconds until the
+indicator turns green, then releasing it. Both USB connectors support data;
+M5Stack recommends the base connector. Record the installed version and settings
+and obtain the appropriate official recovery image before flashing. Recovery to
+a factory image does not establish preservation of device-specific settings.
+
+Probe failures now abort further commands after a motion error, negative motion
+observation, or interruption, and attempt `system.stop`. Restoration is skipped
+after such an abort because it would issue another physical move. If stopping
+cannot be confirmed or motion is abnormal, power off before further testing.
+A normal completed run still restores the captured initial pose. Firmware-reported
+angles and settled flags remain reported state until independently observed.

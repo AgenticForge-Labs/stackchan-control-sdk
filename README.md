@@ -15,7 +15,7 @@ This repository exposes **StackChan-native capabilities**:
 - a pinned external-control firmware overlay
 - a staged USB hardware capability probe
 
-It intentionally does **not** define AgenticForge emotions, character personalities, scene directions, dialogue, or WAV playback. Those belong in `robo-puppeteer` and `robo-director`.
+It intentionally does **not** define AgenticForge emotions, character personalities, scene directions, dialogue, or WAV playback. Those belong in `forge-puppeteer` and `forge-studios`.
 
 ## Current status
 
