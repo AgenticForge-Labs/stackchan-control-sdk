@@ -32,6 +32,15 @@ void AppExternalControl::onOpen()
     LvglLockGuard lock;
     auto avatar = std::make_unique<avatar::DefaultAvatar>();
     avatar->init(lv_screen_active());
+
+    // Enlarge the complete stock face for filming, preserving feature proportions.
+    // LVGL uses 256 for 1x. Scale around the 320x240 panel center, not its corner.
+    constexpr int kFaceScale = 435;  // approximately 1.7x on both axes
+    auto* panel = avatar->getPanel()->get();
+    lv_obj_set_style_transform_pivot_x(panel, 160, 0);
+    lv_obj_set_style_transform_pivot_y(panel, 120, 0);
+    lv_obj_set_style_transform_scale_x(panel, kFaceScale, 0);
+    lv_obj_set_style_transform_scale_y(panel, kFaceScale, 0);
     GetStackChan().attachAvatar(std::move(avatar));
 
     view::create_home_indicator([&]() { close(); }, 0xA8D8FF, 0x12324A);
