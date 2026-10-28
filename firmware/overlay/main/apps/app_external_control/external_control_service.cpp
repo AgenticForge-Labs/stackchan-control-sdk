@@ -12,6 +12,7 @@
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <hal/hal.h>
+#include <lvgl.h>
 #include <stackchan/stackchan.h>
 
 namespace agenticforge {
@@ -465,6 +466,9 @@ void ExternalControlService::handle_line(const std::string& line)
         send_event(id, "accepted");
         auto payload = json_value_to_string(params);
         GetStackChan().updateAvatarFromJson(payload.c_str());
+        // The filming face is transformed as a group. Repaint its background too:
+        // shrinking mouth/eye bounds must not leave pixels from the previous frame.
+        lv_obj_invalidate(lv_screen_active());
         send_event(id, "completed");
         return;
     }
