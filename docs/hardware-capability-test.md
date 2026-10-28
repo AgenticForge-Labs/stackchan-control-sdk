@@ -109,7 +109,9 @@ local backup; post-install runtime calibration is not yet confirmed.
 ESP-IDF 5.5.4 preparation/build passed locally using the CI container. The pinned
 upstream identifies as 1.4.3, distinct from the retail 1.4.4 image. Installation
 with `idf.py -p /dev/ttyACM1 flash` succeeded; all five image hashes verified.
-The device rebooted; launching EXT CONTROL and physical behavior remain pending.
+Automatic post-flash reset left the unit in download mode with a blank screen;
+passive USB output reported `waiting for download`. A brief manual RST press
+resolved this, and the operator launched EXT CONTROL. No second flash was needed.
 
 Local preparation logs and USB enumeration are retained under ignored
 `hardware-reports/`, along with Python check results. Raw generated reports and
@@ -129,3 +131,46 @@ after such an abort because it would issue another physical move. If stopping
 cannot be confirmed or motion is abnormal, power off before further testing.
 A normal completed run still restores the captured initial pose. Firmware-reported
 angles and settled flags remain reported state until independently observed.
+
+
+### First retail results
+
+The SDK implementation tested was
+`20e54995019825974952c922930bcbf5c68cfcc1` (subsequent commits document results).
+Python validation passed: 23 tests, Ruff, and mypy. The exact local firmware
+identity, hashes, configuration, and container digest are retained in
+`hardware-reports/build-identity.json`; exact installation/backup/recovery commands
+are in `hardware-reports/commands.txt`. The full factory backup is 16 MB and
+passed an esptool digest comparison. These private generated artifacts remain
+ignored and are not committed.
+
+- `hello-first.log`: protocol 1.0, overlay 0.2.0, upstream V1.4.3, M5Stack
+  StackChan board, USB Serial/JTAG, native tenths-of-degree units.
+- `first.json`: face changes, original-face restoration, and distinct blue and
+  orange/red lights confirmed by the operator. Lights-off and idle stop received
+  accepted/completed events. Motion was disabled.
+- `first-motion.json`: repeated face/light checks confirmed; centered 45° pitch,
+  yaw −12°/+12°/0°, pitch 35°/55°/45°, and visual return to the initial pose all
+  confirmed smooth by the operator. No chatter, binding, or cable pulling was
+  reported. Each motion request received a matching accepted/completed pair.
+  Continuous rotation and animation playback were not run.
+
+Initial reported yaw/pitch were −2.1°/36.8°; final reported values before stop
+were −0.9°/36.8°. Restoration commanded the exact captured raw initial values,
+but final reported yaw differed by 1.2°. The operator confirmed visual return;
+these observations do not establish independently measured absolute accuracy or
+settling tolerance. Firmware state uses native feedback with a software fallback
+on invalid feedback, so reported position must not be described as independent
+measurement.
+
+`system.stop` completed after motion had settled. In-flight cancellation and
+physical interruption remain unverified; the current probe does not exercise
+that case. No physical stall was induced. Active-stop validation requires a
+separately reviewed bounded test before it is treated as proven. Reconnect and
+host-loss watchdog behavior also remain follow-up work. USB worked throughout
+both staged runs; these results do not justify adding another transport.
+
+Integration status: **awaiting further hardware validation**. No Forge Puppeteer
+integration was started. Organization-wide `architecture.md` and `development.md`
+could not be located; repository architecture and current Puppeteer boundary
+instructions were inspected instead.

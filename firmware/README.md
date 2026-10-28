@@ -2,7 +2,9 @@
 
 This directory contains an overlay for the public M5Stack StackChan ESP-IDF firmware. It does not duplicate the entire upstream repository. `upstream.lock.json` pins the exact upstream commit and `tools/prepare_firmware.py` creates a reproducible worktree.
 
-The overlay and pinned upstream tree complete a full ESP-IDF 5.5.4 build in GitHub Actions. Retail flashing and behavior remain unverified until the physical robot is available.
+The overlay and pinned upstream tree complete a full ESP-IDF 5.5.4 build in GitHub Actions. A first retail USB session passed flashing, handshake, face, lights, and bounded
+motion checks on 2026-10-28. See `docs/hardware-capability-test.md` for evidence
+and limits; active-motion cancellation remains unverified.
 
 ## What the overlay adds
 
@@ -63,6 +65,12 @@ Flash the prepared image with:
 ```bash
 idf.py -p PORT flash monitor
 ```
+
+If flashing verifies successfully but the screen stays blank, inspect serial
+output before reflashing. In the first retail session, automatic reset left the
+ESP32-S3 reporting `waiting for download`. A brief press/release of RST booted
+the installed firmware, and the operator then opened EXT CONTROL. Holding RST
+enters download mode; do not hold it for a normal restart.
 
 Keep the upstream repository and M5Stack's official flashing instructions available so the factory firmware can be restored.
 

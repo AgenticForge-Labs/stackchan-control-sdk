@@ -31,7 +31,12 @@ This repository now contains the software needed up to the physical-hardware bou
 6. a conservative capability-test CLI and evidence report;
 7. a successful full build under ESP-IDF 5.5.4 with retained flash artifacts.
 
-The overlay is not yet claimed to work on retail hardware. The remaining gate is to flash it, identify the exposed USB data port, and observe the real device behavior.
+The first retail USB session on 2026-10-28 passed handshake, operator-confirmed
+face and lighting updates, bounded yaw/pitch motion, and visual restoration.
+Matching command completion and idle stop acknowledgments were recorded. This
+is initial hardware evidence: active-motion cancellation, independent positioning
+accuracy, reconnects, and host-loss behavior remain unverified. See
+[`docs/hardware-capability-test.md`](docs/hardware-capability-test.md).
 
 ## Angle units
 
