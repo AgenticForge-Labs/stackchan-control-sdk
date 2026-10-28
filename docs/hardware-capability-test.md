@@ -98,11 +98,19 @@ Remote `main` was fetched and verified at
 `36207e1be1879dcaa31ba5cae1f7155b65eba3e4`; no open PRs were found.
 The Linux workstation enumerated an Espressif `303a:1001` USB Serial/JTAG
 interface at `/dev/ttyACM1`. This is a candidate device identity, not a
-successful protocol handshake; the physical connector still requires operator
-confirmation. A separate QinHeng serial device must not be used for this probe.
+successful protocol handshake; the operator confirmed the body USB connector. A separate QinHeng serial device must not be used for this probe.
 
-Factory firmware version, calibration/settings, and physical behavior have not
-yet been recorded. No firmware installation or motion is claimed from enumeration.
+The operator reported factory firmware v1.4.4 and no EXT CONTROL app. A full
+16 MB flash backup was read and verified against the device (digest matched)
+before installation. The NVS snapshot contains servo zero offsets 475 and 596,
+with AI startup disabled. The original NVS partition matches the prepared layout
+and is excluded from the flash manifest. Hidden settings remain in the private
+local backup; post-install runtime calibration is not yet confirmed.
+ESP-IDF 5.5.4 preparation/build passed locally using the CI container. The pinned
+upstream identifies as 1.4.3, distinct from the retail 1.4.4 image. Installation
+with `idf.py -p /dev/ttyACM1 flash` succeeded; all five image hashes verified.
+The device rebooted; launching EXT CONTROL and physical behavior remain pending.
+
 Local preparation logs and USB enumeration are retained under ignored
 `hardware-reports/`, along with Python check results. Raw generated reports and
 firmware binaries must remain outside source control.
