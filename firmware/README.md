@@ -92,3 +92,13 @@ Firmware events:
 Normal ESP-IDF logs may share the same serial port. Host software ignores lines without the `@AF ` prefix.
 
 See `docs/hardware-capability-test.md` for the exact plug-in test sequence.
+
+
+## Filming layout
+
+EXT CONTROL enlarges the stock avatar uniformly by approximately 1.7× about the
+screen center. Native feature parameters continue to use their existing units.
+Face updates invalidate the full screen to prevent stale pixels around shrinking
+features on the scaled panel. A talking/surprised replay initially exposed mouth
+streaks; the operator confirmed a clean replay after this redraw change. See the
+hardware capability document for the tested revision and retained local evidence.

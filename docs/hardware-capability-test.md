@@ -215,3 +215,35 @@ follow-up resolves it for one supervised bounded interruption.
 Python validation after the host addition: 26 tests, Ruff, and mypy passed.
 Generated evidence remains under ignored `hardware-reports/`; this document
 contains the source-controlled findings. No Forge Puppeteer integration has begun.
+
+
+### Larger filming face and redraw regression
+
+The operator requested the stock shapes fill more of the display. EXT CONTROL
+now scales the entire stock 320×240 avatar panel uniformly about its center,
+using LVGL scale 435/256 (approximately 1.7×). This preserves feature shapes,
+relative positions, and existing expression parameters; it applies to EXT CONTROL.
+The operator confirmed the face looked larger after installation.
+
+After replaying the same talking/surprised mouth sequence, the operator observed
+vertical streaks near the mouth's left edge. This first appeared with panel
+scaling. The overlay now invalidates the full active screen after applying
+`avatar.update`, so shrinking features repaint the previous frame's background.
+This is consistent with stale transformed partial-redraw pixels, although the
+exact LVGL internal cause was not independently isolated.
+
+Firmware/SDK revision `c1dffadf5db05e969a5c96d3ba6317b02538e469` was built with
+ESP-IDF 5.5.4 and installed with `idf.py -p /dev/ttyACM1 flash`; all five image
+hashes verified. Python checks passed: 26 tests, Ruff, and mypy. Following a
+manual RST/relaunch of EXT CONTROL, the exact host face sequence was replayed
+and the original face restored. The operator reported “looks good,” confirming
+the visible streak regression cleared in that replay. No servo commands were
+sent for this visual validation; motion was not revalidated on this firmware.
+
+The visual replay is the regression check; Python tests do not exercise LVGL's
+physical display output. Local evidence includes `filming-redraw-build-identity.json`,
+`filming-redraw-build.log`, `filming-redraw-flash.log`,
+`talking-surprise-redraw-regression.json`, and `filming-artifact-observation.json`
+under ignored `hardware-reports/`. Previous firmware artifacts are retained there
+for comparison. Native animation playback remains gated: these demonstrations
+use timed host `avatar.update` messages and do not enable firmware animations.
