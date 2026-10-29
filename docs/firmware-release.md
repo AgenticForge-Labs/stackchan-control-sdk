@@ -31,14 +31,23 @@ python3 tools/package_firmware.py \
 
 The bundle contains:
 
-- only the binaries referenced by ESP-IDF's `flasher_args.json`;
+- only the binaries referenced by ESP-IDF's `flasher_args.json`, after checking target chip, flash settings, 4 KiB alignment, erased-sector overlaps and bounds within the declared flash capacity;
 - the original ESP-IDF flasher manifest and the generated `FLASHING.md` with an esptool command;
-- `manifest.json` with flash offsets, each image's SHA256, source commit, SDK version and upstream lock;
-- AgenticForge `LICENSE`, `NOTICE`, and upstream `M5STACK-LICENSE`.
+- `manifest.json` with flash offsets, each image's SHA256, SDK repository commit at **packaging time**, SDK version and upstream lock (the package does not yet independently attest which repository commit produced an existing build);
+- AgenticForge `LICENSE`, `NOTICE`, and upstream `M5STACK-LICENSE`;
+- `SHA256SUMS` for offline verification of the extracted bundle before installation.
+
+After extracting, from the directory containing `SHA256SUMS`, verify every file:
+    
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Stop if any hash fails. Packaging writes the archive atomically, so errors do not replace an existing valid ZIP.
 
 Packaging is deterministic **for identical input files and source metadata**. This is distinct from proving two separate firmware compilations are byte-for-byte identical.
 
-The packaging command never invokes esptool or accesses USB hardware. It rejects missing images, unsafe paths, and any explicitly referenced NVS image. **This is not a guarantee that the partition layout preserves existing calibration.** An operator must verify the layout and take a restorable factory backup before flashing.
+The packaging command never invokes esptool or accesses USB hardware. It rejects missing images, unsafe paths, any explicitly referenced NVS image, conflicting ESP-IDF flash arguments, the wrong target chip, unaligned flash offsets, overlapping erase sectors and images that extend beyond the declared flash capacity. **This is not a guarantee that the partition layout preserves existing calibration.** An operator must verify the layout and take a restorable factory backup before flashing.
 
 Unzip the bundle and follow `FLASHING.md` on a compatible ESP32-S3 StackChan. Replace `YOUR_PORT` with the confirmed USB Serial/JTAG port, perform the flash manually, open EXT CONTROL, and use `stackchan-probe hello` before any motion commands. Follow `docs/hardware-capability-test.md` for staged safety checks.
 
