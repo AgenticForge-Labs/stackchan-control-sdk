@@ -18,6 +18,9 @@ from typing import Final
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 FIXED_ZIP_DATE: Final = (1980, 1, 1, 0, 0, 0)
+# Pinned M5Stack partition layout: firmware/partitions.csv (upstream b72b3ede).
+REQUIRED_OFFSETS: Final = {0x0, 0x8000, 0x20000}
+PROTECTED_NVS: Final = (0x9000, 0xD000)
 
 
 class PackageError(ValueError):
@@ -88,6 +91,8 @@ def _flash_files(
         if not contents or position + len(contents) > flash_capacity:
             raise PackageError(f"empty or out-of-bounds flash image: {filename}")
         found.append((f"0x{position:x}", filename, contents))
+    if not REQUIRED_OFFSETS.issubset(offsets):
+        raise PackageError("missing bootloader, partition table, or OTA app flash image")
     found.sort(key=lambda item: int(item[0], 16))
     previous_erase_end = 0
     for offset, filename, contents in found:
@@ -95,6 +100,8 @@ def _flash_files(
         if position < previous_erase_end:
             raise PackageError(f"overlapping flash/erase sectors at {filename}")
         previous_erase_end = (position + len(contents) + 4095) // 4096 * 4096
+        if position < PROTECTED_NVS[1] and previous_erase_end > PROTECTED_NVS[0]:
+            raise PackageError(f"image erase would touch NVS calibration at {filename}")
         if previous_erase_end > flash_capacity:
             raise PackageError(f"image erase exceeds flash size at {filename}")
     return found
