@@ -56,6 +56,21 @@ idf.py build
 
 The GitHub workflow also retains the build log, application image, bootloader, partition table, and `flasher_args.json`.
 
+## Release bundle
+
+After a successful clean source build, package the ESP-IDF flash inputs from the
+SDK repository root:
+
+```bash
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+```
+
+The ZIP is for manual installation and includes `FLASHING.md`, `SHA256SUMS`,
+a provenance/hash manifest, validated flash layout, and license notices. Before manual
+flashing, extract and run `sha256sum -c SHA256SUMS`; abort if any hash fails. See `docs/firmware-release.md`
+for reproducibility limitations and release prerequisites. Packaging does not
+flash the device or alter NVS.
+
 ## Flash and restore
 
 Do not flash until the retail device is available and its existing firmware version and settings have been recorded. The first physical session should identify which StackChan/CoreS3 USB connector exposes the ESP32-S3 USB Serial/JTAG port.

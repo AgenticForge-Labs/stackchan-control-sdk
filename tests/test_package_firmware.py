@@ -1,0 +1,149 @@
+import hashlib
+import json
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from tools.package_firmware import PackageError, package
+
+
+def fixture_tree(tmp_path: Path) -> tuple[Path, Path]:
+    root = tmp_path / "source"
+    (root / "firmware").mkdir(parents=True)
+    (root / "firmware/upstream.lock.json").write_text(
+        json.dumps({"repository": "https://example.com/m5.git", "commit": "a" * 40,
+                    "esp_idf_version": "v5.5.4"}), encoding="utf-8"
+    )
+    (root / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
+    (root / "NOTICE").write_text("NOTICE", encoding="utf-8")
+    (root / "LICENSE").write_text("LICENSE", encoding="utf-8")
+    build = tmp_path / "build"
+    (tmp_path / "LICENSE").write_text("M5Stack MIT", encoding="utf-8")
+    (build / "bootloader").mkdir(parents=True)
+    (build / "partition_table").mkdir(parents=True)
+    (build / "partition_table/partition-table.bin").write_bytes(b"PART")
+    (build / "bootloader/bootloader.bin").write_bytes(b"BOOT")
+    (build / "stack-chan.bin").write_bytes(b"APP")
+    (build / "flasher_args.json").write_text(json.dumps({
+        "flash_settings": {"flash_mode": "dio", "flash_freq": "80m", "flash_size": "16MB"},
+        "flash_files": {"0x20000": "stack-chan.bin", "0x0": "bootloader/bootloader.bin",
+                        "0x8000": "partition_table/partition-table.bin"},
+        "write_flash_args": ["--flash_mode", "dio", "--flash_size", "16MB",
+                             "--flash_freq", "80m"],
+        "extra_esptool_args": {"chip": "esp32s3", "after": "hard_reset"}
+    }), encoding="utf-8")
+    return root, build
+
+
+def test_package_includes_only_flash_files_with_hashes(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    (build / "secret-nvs.bin").write_bytes(b"SECRET")
+    output = tmp_path / "firmware.zip"
+    package(build, output, root=root, commit="b" * 40)
+    with zipfile.ZipFile(output) as z:
+        assert "secret-nvs.bin" not in z.namelist()
+        assert z.read("stack-chan.bin") == b"APP"
+        assert z.read("M5STACK-LICENSE") == b"M5Stack MIT"
+        manifest = json.loads(z.read("manifest.json"))
+        assert manifest["source_commit"] == "b" * 40
+        app = next(f for f in manifest["files"] if f["path"] == "stack-chan.bin")
+        assert app["sha256"] == hashlib.sha256(b"APP").hexdigest()
+        assert "--port YOUR_PORT" in z.read("FLASHING.md").decode()
+        assert "0x0 bootloader/bootloader.bin" in z.read("FLASHING.md").decode()
+        assert "sha256sum -c SHA256SUMS" in z.read("FLASHING.md").decode()
+        checksums = z.read("SHA256SUMS").decode().splitlines()
+        for line in checksums:
+            digest, name = line.split("  ", 1)
+            assert digest == hashlib.sha256(z.read(name)).hexdigest()
+
+
+def test_package_repeated_output_identical(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    first, second = tmp_path / "one.zip", tmp_path / "two.zip"
+    package(build, first, root=root, commit="c" * 40)
+    package(build, second, root=root, commit="c" * 40)
+    assert first.read_bytes() == second.read_bytes()
+
+
+@pytest.mark.parametrize("bad_path", ["../leak.bin", "/etc/passwd.bin", "nvs.bin", "other.txt"])
+def test_reject_unsafe_flash_paths(tmp_path: Path, bad_path: str) -> None:
+    root, build = fixture_tree(tmp_path)
+    data = json.loads((build / "flasher_args.json").read_text())
+    data["flash_files"]["0x20000"] = bad_path
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+    assert not (tmp_path / "invalid.zip").exists()
+
+
+def test_reject_absent_flash_binary(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    (build / "stack-chan.bin").unlink()
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+
+
+@pytest.mark.parametrize("offset, image_bytes", [
+    ("0x1", b"BAD"),  # sector misalignment
+    ("0x0", b"X" * 0x20001),  # overlaps with OTA app at 0x20000
+    ("0xfff000", b"Y" * 0x2000),  # exceeds 16 MB flash
+])
+def test_reject_overlapping_or_out_of_bounds_flash(
+    tmp_path: Path, offset: str, image_bytes: bytes
+) -> None:
+    root, build = fixture_tree(tmp_path)
+    (build / "bootloader/bootloader.bin").write_bytes(image_bytes)
+    data = json.loads((build / "flasher_args.json").read_text())
+    data["flash_files"].pop("0x0")
+    data["flash_files"][offset] = "bootloader/bootloader.bin"
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+    assert not (tmp_path / "invalid.zip").exists()
+
+
+@pytest.mark.parametrize("change", [
+    lambda data: data["extra_esptool_args"].update(chip="esp32"),
+    lambda data: data["flash_settings"].update(flash_size="detect"),
+    lambda data: data["write_flash_args"].__setitem__(1, "qio"),
+])
+def test_reject_ambiguous_or_wrong_target_metadata(tmp_path: Path, change) -> None:
+    root, build = fixture_tree(tmp_path)
+    data = json.loads((build / "flasher_args.json").read_text())
+    change(data)
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+
+
+def test_failures_do_not_replace_valid_bundle(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    output = tmp_path / "bundle.zip"
+    package(build, output, root=root, commit="c" * 40)
+    good = output.read_bytes()
+    (build / "stack-chan.bin").unlink()
+    with pytest.raises(PackageError):
+        package(build, output, root=root, commit="c" * 40)
+    assert output.read_bytes() == good
+    assert not list(tmp_path.glob(".stackchan-bundle-*"))
+
+
+def test_reject_nonstandard_stackchan_partition_layout(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    data = json.loads((build / "flasher_args.json").read_text())
+    data["flash_files"].pop("0x20000")
+    data["flash_files"]["0x10000"] = "stack-chan.bin"
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError, match="missing bootloader"):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+
+
+def test_reject_image_erasing_nvs_calibration(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    (build / "custom.bin").write_bytes(b"UNEXPECTED")
+    data = json.loads((build / "flasher_args.json").read_text())
+    data["flash_files"]["0x9000"] = "custom.bin"
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError, match="touch NVS"):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
