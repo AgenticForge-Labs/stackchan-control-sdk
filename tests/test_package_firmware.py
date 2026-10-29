@@ -25,7 +25,10 @@ def fixture_tree(tmp_path: Path) -> tuple[Path, Path]:
     (build / "stack-chan.bin").write_bytes(b"APP")
     (build / "flasher_args.json").write_text(json.dumps({
         "flash_settings": {"flash_mode": "dio", "flash_freq": "80m", "flash_size": "16MB"},
-        "flash_files": {"0x10000": "stack-chan.bin", "0x0": "bootloader/bootloader.bin"}
+        "flash_files": {"0x10000": "stack-chan.bin", "0x0": "bootloader/bootloader.bin"},
+        "write_flash_args": ["--flash_mode", "dio", "--flash_size", "16MB",
+                             "--flash_freq", "80m"],
+        "extra_esptool_args": {"chip": "esp32s3", "after": "hard_reset"}
     }), encoding="utf-8")
     return root, build
 
@@ -44,6 +47,11 @@ def test_package_includes_only_flash_files_with_hashes(tmp_path: Path) -> None:
         assert manifest["files"][1]["sha256"] == hashlib.sha256(b"APP").hexdigest()
         assert "--port YOUR_PORT" in z.read("FLASHING.md").decode()
         assert "0x0 bootloader/bootloader.bin" in z.read("FLASHING.md").decode()
+        assert "sha256sum -c SHA256SUMS" in z.read("FLASHING.md").decode()
+        checksums = z.read("SHA256SUMS").decode().splitlines()
+        for line in checksums:
+            digest, name = line.split("  ", 1)
+            assert digest == hashlib.sha256(z.read(name)).hexdigest()
 
 
 def test_package_repeated_output_identical(tmp_path: Path) -> None:
@@ -70,3 +78,48 @@ def test_reject_absent_flash_binary(tmp_path: Path) -> None:
     (build / "stack-chan.bin").unlink()
     with pytest.raises(PackageError):
         package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+
+
+@pytest.mark.parametrize("offset, image_bytes", [
+    ("0x1", b"BAD"),  # sector misalignment
+    ("0x0", b"X" * 0x10001),  # overlaps with app at 0x10000
+    ("0xfff000", b"Y" * 0x2000),  # exceeds 16 MB flash
+])
+def test_reject_overlapping_or_out_of_bounds_flash(
+    tmp_path: Path, offset: str, image_bytes: bytes
+) -> None:
+    root, build = fixture_tree(tmp_path)
+    (build / "bootloader/bootloader.bin").write_bytes(image_bytes)
+    data = json.loads((build / "flasher_args.json").read_text())
+    data["flash_files"].pop("0x0")
+    data["flash_files"][offset] = "bootloader/bootloader.bin"
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+    assert not (tmp_path / "invalid.zip").exists()
+
+
+@pytest.mark.parametrize("change", [
+    lambda data: data["extra_esptool_args"].update(chip="esp32"),
+    lambda data: data["flash_settings"].update(flash_size="detect"),
+    lambda data: data["write_flash_args"].__setitem__(1, "qio"),
+])
+def test_reject_ambiguous_or_wrong_target_metadata(tmp_path: Path, change) -> None:
+    root, build = fixture_tree(tmp_path)
+    data = json.loads((build / "flasher_args.json").read_text())
+    change(data)
+    (build / "flasher_args.json").write_text(json.dumps(data))
+    with pytest.raises(PackageError):
+        package(build, tmp_path / "invalid.zip", root=root, commit="a" * 40)
+
+
+def test_failures_do_not_replace_valid_bundle(tmp_path: Path) -> None:
+    root, build = fixture_tree(tmp_path)
+    output = tmp_path / "bundle.zip"
+    package(build, output, root=root, commit="c" * 40)
+    good = output.read_bytes()
+    (build / "stack-chan.bin").unlink()
+    with pytest.raises(PackageError):
+        package(build, output, root=root, commit="c" * 40)
+    assert output.read_bytes() == good
+    assert not list(tmp_path.glob(".stackchan-bundle-*"))
