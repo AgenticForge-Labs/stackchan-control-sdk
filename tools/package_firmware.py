@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import json
 import re
 import shlex
 import subprocess
+import tempfile
 import tomllib
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -22,12 +24,37 @@ class PackageError(ValueError):
     """Invalid or incomplete image; never produce a partially flashable archive."""
 
 
-def _flash_files(build_dir: Path, data: object) -> list[tuple[str, str, bytes]]:
-    if not isinstance(data, dict) or not isinstance(data.get("flash_files"), dict):
-        raise PackageError("flasher_args.json must contain flash_files")
-    files = data["flash_files"]
-    if not files:
-        raise PackageError("flash_files is empty")
+def _flash_settings(data: dict[str, object]) -> tuple[list[str], int]:
+    """Validate the exact fixed-target ESP-IDF 5.5.x flash settings."""
+    settings = data.get("flash_settings")
+    if not isinstance(settings, dict):
+        raise PackageError("flasher_args.json lacks flash_settings")
+    mode = settings.get("flash_mode")
+    freq = settings.get("flash_freq")
+    size = settings.get("flash_size")
+    if mode not in ("qio", "qout", "dio", "dout"):
+        raise PackageError("unsupported flash mode")
+    if not isinstance(freq, str) or not re.fullmatch(r"[0-9]+m", freq):
+        raise PackageError("invalid flash frequency")
+    if not isinstance(size, str) or not re.fullmatch(r"(?:1|2|4|8|16|32|64|128)MB", size):
+        raise PackageError("fixed numeric flash size required")
+    # Detect metadata conflicts before ever generating the install command.
+    expected = ["--flash_mode", mode, "--flash_size", size, "--flash_freq", freq]
+    actual = data.get("write_flash_args")
+    if actual != expected:
+        raise PackageError("write_flash_args disagree with flash_settings or are missing")
+    extra = data.get("extra_esptool_args")
+    if not isinstance(extra, dict) or extra.get("chip") != "esp32s3":
+        raise PackageError("expected ESP32-S3 flasher metadata")
+    return expected, int(size[:-2]) * 1024 * 1024
+
+
+def _flash_files(
+    build_dir: Path, data: dict[str, object], *, flash_capacity: int
+) -> list[tuple[str, str, bytes]]:
+    files = data.get("flash_files")
+    if not isinstance(files, dict) or not files:
+        raise PackageError("flasher_args.json must contain nonempty flash_files")
     found: list[tuple[str, str, bytes]] = []
     offsets: set[int] = set()
     for offset, filename in files.items():
@@ -39,22 +66,37 @@ def _flash_files(build_dir: Path, data: object) -> list[tuple[str, str, bytes]]:
         if (
             path.is_absolute()
             or "\\" in filename
+            or path.as_posix() != filename
             or path.parts == ()
             or any(part in ("", ".", "..") for part in path.parts)
+            or not re.fullmatch(r"[A-Za-z0-9._/-]+", filename)
             or path.suffix != ".bin"
         ):
             raise PackageError(f"unsafe firmware filename: {filename!r}")
-        if "nvs" in path.name.lower():
+        if any("nvs" in part.lower() for part in path.parts):
             raise PackageError("refusing to package a flash instruction touching NVS")
         position = int(offset, 16)
         if position in offsets:
             raise PackageError(f"duplicate flash offset: {offset}")
+        if position % 4096 != 0:
+            raise PackageError(f"flash offset must be sector-aligned: {offset}")
         offsets.add(position)
         target = build_dir / filename
         if not target.is_file() or not target.resolve().is_relative_to(build_dir.resolve()):
             raise PackageError(f"missing or external firmware file: {filename}")
-        found.append((f"0x{position:x}", filename, target.read_bytes()))
+        contents = target.read_bytes()
+        if not contents or position + len(contents) > flash_capacity:
+            raise PackageError(f"empty or out-of-bounds flash image: {filename}")
+        found.append((f"0x{position:x}", filename, contents))
     found.sort(key=lambda item: int(item[0], 16))
+    previous_erase_end = 0
+    for offset, filename, contents in found:
+        position = int(offset, 16)
+        if position < previous_erase_end:
+            raise PackageError(f"overlapping flash/erase sectors at {filename}")
+        previous_erase_end = (position + len(contents) + 4095) // 4096 * 4096
+        if previous_erase_end > flash_capacity:
+            raise PackageError(f"image erase exceeds flash size at {filename}")
     return found
 
 
@@ -75,16 +117,7 @@ def _source_commit(root: Path) -> str:
     return commit
 
 
-def _flash_command(data: dict[str, object], files: list[tuple[str, str, bytes]]) -> str:
-    settings = data.get("flash_settings")
-    if not isinstance(settings, dict):
-        raise PackageError("flasher_args.json lacks flash_settings")
-    options: list[str] = []
-    for name in ("flash_mode", "flash_freq", "flash_size"):
-        value = settings.get(name)
-        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9]+", value):
-            raise PackageError(f"missing or invalid flash setting: {name}")
-        options.extend([f"--{name}", value])
+def _flash_command(options: list[str], files: list[tuple[str, str, bytes]]) -> str:
     pairs = [piece for offset, name, _ in files for piece in (offset, name)]
     return "python -m esptool --chip esp32s3 --port YOUR_PORT write_flash " + " ".join(
         shlex.quote(arg) for arg in [*options, *pairs]
@@ -109,14 +142,17 @@ def package(build_dir: Path, output: Path, *, root: Path = ROOT, commit: str | N
         raise PackageError("required build or repository metadata is missing or invalid") from exc
     if not isinstance(data, dict) or not isinstance(upstream, dict):
         raise PackageError("invalid manifest or upstream lock")
-    files = _flash_files(build_dir, data)
-    command = _flash_command(data, files)
+    options, flash_capacity = _flash_settings(data)
+    files = _flash_files(build_dir, data, flash_capacity=flash_capacity)
+    command = _flash_command(options, files)
     revision = commit if commit is not None else _source_commit(root)
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise PackageError("source commit must be a full 40-character SHA")
     metadata = {
         "schema": 1,
         "sdk_version": version,
+        "flash_size_bytes": flash_capacity,
+        "source_revision_note": "SDK repository commit at packaging; firmware build lineage not independently verified",
         "source_commit": revision,
         "upstream": upstream,
         "files": [
@@ -133,12 +169,17 @@ def package(build_dir: Path, output: Path, *, root: Path = ROOT, commit: str | N
         "docs/hardware-capability-test.md. Use only the matching StackChan "
         "hardware and verified partition layout. Flashing is a manual action.\n\n"
         "Install compatible esptool from the ESP-IDF 5.5.4 environment. "
+        "Unzip the archive, change to its root directory, then verify every "
+        "included file before connecting hardware:\n\n"
+        "    sha256sum -c SHA256SUMS\n\n"
+        "Stop if ANY checksum fails. "
         "With StackChan connected in download mode, replace YOUR_PORT:\n\n"
         f"    {command}\n\n"
         "After flashing, briefly press and release RST if the screen remains blank "
         "and the serial console says 'waiting for download'. Do not hold RST. "
         "Open EXT CONTROL in the launcher to use USB control.\n\n"
-        "See manifest.json for exact image SHA256 hashes, offsets, source commit "
+        "See manifest.json for exact image SHA256 hashes, offsets, SDK repository "
+        "commit at packaging (not independently established build lineage), "
         "and pinned upstream version. M5STACK-LICENSE retains the upstream "
         "MIT license notice. The archive does not include factory NVS, "
         "device credentials, or original factory recovery image. No hardware "
@@ -154,13 +195,29 @@ def package(build_dir: Path, output: Path, *, root: Path = ROOT, commit: str | N
     }
     for _, filename, content in files:
         contents[filename] = content
+    contents["SHA256SUMS"] = "".join(
+        f"{hashlib.sha256(content).hexdigest()}  {name}\n"
+        for name, content in sorted(contents.items())
+    ).encode("ascii")
     output.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
-        for name in sorted(contents):
-            info = zipfile.ZipInfo(name, date_time=FIXED_ZIP_DATE)
-            info.compress_type = zipfile.ZIP_STORED
-            info.external_attr = 0o644 << 16
-            archive.writestr(info, contents[name])
+    # Write atomically: an interrupted ZIP write must never replace a valid release.
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=".stackchan-bundle-", suffix=".zip.tmp", dir=output.parent,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as archive:
+            for name in sorted(contents):
+                info = zipfile.ZipInfo(name, date_time=FIXED_ZIP_DATE)
+                info.compress_type = zipfile.ZIP_STORED
+                info.external_attr = 0o644 << 16
+                archive.writestr(info, contents[name])
+        os.replace(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def main() -> int:
