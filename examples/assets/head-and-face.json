@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "head-and-face",
+  "kind": "sequence",
+  "description": "Illustrative host-driven sequence; motion requires explicit authorization.",
+  "steps": [
+    {"at_s": 0, "operation": "face", "parameters": {"mouth": {"size": 10}}},
+    {"at_s": 1, "operation": "head", "parameters": {"yaw": {"angle": 0, "speed": 50}}}
+  ]
+}
