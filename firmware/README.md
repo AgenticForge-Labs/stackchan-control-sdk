@@ -65,8 +65,9 @@ SDK repository root:
 python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
 ```
 
-The ZIP is for manual installation and includes `FLASHING.md`, SHA256 hashes,
-the exact flash manifest, and license notices. See `docs/firmware-release.md`
+The ZIP is for manual installation and includes `FLASHING.md`, `SHA256SUMS`,
+a provenance/hash manifest, validated flash layout, and license notices. Before manual
+flashing, extract and run `sha256sum -c SHA256SUMS`; abort if any hash fails. See `docs/firmware-release.md`
 for reproducibility limitations and release prerequisites. Packaging does not
 flash the device or alter NVS.
 
