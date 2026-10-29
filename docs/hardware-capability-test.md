@@ -247,3 +247,13 @@ physical display output. Local evidence includes `filming-redraw-build-identity.
 under ignored `hardware-reports/`. Previous firmware artifacts are retained there
 for comparison. Native animation playback remains gated: these demonstrations
 use timed host `avatar.update` messages and do not enable firmware animations.
+
+### External NeoHEX follow-up
+
+One NeoHEX 37 board on side Port A was validated at firmware/SDK
+`f50440d917331f2c7c6979966ebf5cc1b3c69a82`. Dim red/green/blue, automatic
+lights-off after frame loss, all three streamed light shows, and final lights-off
+were confirmed by the operator. Firmware rejected malformed/count/brightness
+requests before initializing the peripheral. See [NeoHEX findings](neohex.md)
+for limits and evidence paths. The new firmware retained the filming layout and
+redraw change; no servo commands were sent during NeoHEX validation.

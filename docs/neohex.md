@@ -64,3 +64,29 @@ compiles the actual firmware driver against a fake LED peripheral and checks
 scaling, timeout clearing (including after a failed refresh), and cleanup.
 The ESP-IDF build checks the real peripheral API. Physical color, timeout, and
 show observations must be recorded separately under `hardware-reports/`.
+
+## First physical validation — 2026-10-28
+
+Firmware/SDK `f50440d917331f2c7c6979966ebf5cc1b3c69a82` was built under
+ESP-IDF 5.5.4 and flashed through body USB `/dev/ttyACM1`; all five image hashes
+verified. One NeoHEX was connected to side Port A with a standard Grove cable.
+The operator relaunched EXT CONTROL before checks.
+
+- Firmware advertised extension 0.3.0 and `external_lights.update`.
+- Wrong pixel count, invalid hex color, brightness 33, and boolean brightness
+  were rejected. State confirmed these invalid requests did not initialize
+  the LED peripheral.
+- At brightness 4, the operator confirmed red, green, then blue on the external
+  board, followed by lights-off when updates stopped. Two seconds after the
+  last frame, state reported commanded_lit false, brightness 0, and ESP_OK.
+  This validates observed timeout-off, not independently measured exact timing.
+- At brightness 8, rainbow, comets, and sparkles were each streamed for six
+  seconds. Every frame completed; the operator confirmed all three distinct
+  animated patterns and final lights-off. The shows sent no face or servo commands.
+
+Evidence remains local and ignored: `hardware-reports/neohex-build-identity.json`,
+`neohex-first-check.json`, `neohex-shows.json`, and the `neohex-*` build/check logs.
+The complete factory recovery backup remains preserved. Python checks passed:
+46 tests (including the actual-driver C++ peripheral test), Ruff, and mypy.
+No claim is made about full-brightness power capacity, additional boards,
+physical ring/index mapping, or operation on other Grove ports.
