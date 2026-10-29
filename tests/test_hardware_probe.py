@@ -82,3 +82,66 @@ def test_probe_stops_when_initial_state_is_unavailable() -> None:
     assert report["tests"][-1]["name"] == "state_initial"
     assert report["tests"][-1]["command_status"] == "fail"
     assert not any(method == "motion.update" for method, _ in client.calls)
+
+
+def test_motion_timeout_stops_without_restoration_or_later_commands(monkeypatch) -> None:
+    monkeypatch.setattr("stackchan_control.hardware_probe.time.sleep", lambda _: None)
+
+    class TimeoutClient(FakeClient):
+        def request(self, method, params=None, *, timeout=8.0):
+            if method == "motion.update":
+                self.calls.append((method, params))
+                raise TimeoutError("servo completion timed out")
+            return super().request(method, params, timeout=timeout)
+
+    client = TimeoutClient()
+    report = run_probe(client, allow_motion=True, no_prompt=True)
+    assert report["aborted"] is True
+    assert [m for m, _ in client.calls].count("motion.update") == 1
+    assert client.calls[-1][0] == "system.stop"
+    assert report["tests"][-1]["name"] == "neutral_pose"
+    assert report["tests"][-1]["command_status"] == "fail"
+
+
+def test_negative_motion_observation_stops_probe(monkeypatch) -> None:
+    monkeypatch.setattr("stackchan_control.hardware_probe.time.sleep", lambda _: None)
+    monkeypatch.setattr(
+        "stackchan_control.hardware_probe._observe",
+        lambda prompt, **k: "fail" if "smoothly" in prompt else "pass",
+    )
+    client = FakeClient()
+    report = run_probe(client, allow_motion=True, no_prompt=False)
+    assert report["aborted"] is True
+    assert [m for m, _ in client.calls].count("motion.update") == 1
+    assert client.calls[-1][0] == "system.stop"
+
+
+def test_failed_face_observation_prevents_motion(monkeypatch) -> None:
+    monkeypatch.setattr("stackchan_control.hardware_probe.time.sleep", lambda _: None)
+    monkeypatch.setattr("stackchan_control.hardware_probe._observe", lambda *a, **k: "fail")
+    client = FakeClient()
+    report = run_probe(client, allow_motion=True, no_prompt=False)
+    assert report["aborted"] is True
+    assert not any(m == "motion.update" for m, _ in client.calls)
+
+
+def test_interrupt_during_motion_attempts_stop_and_retains_evidence(monkeypatch) -> None:
+    monkeypatch.setattr("stackchan_control.hardware_probe.time.sleep", lambda _: None)
+
+    class InterruptedClient(FakeClient):
+        def request(self, method, params=None, *, timeout=8.0):
+            if method == "motion.update":
+                self.calls.append((method, params))
+                raise KeyboardInterrupt
+            if method == "system.stop":
+                self.calls.append((method, params))
+                raise RuntimeError("USB disconnected")
+            return super().request(method, params, timeout=timeout)
+
+    client = InterruptedClient()
+    report = run_probe(client, allow_motion=True, no_prompt=True)
+    assert report["aborted"] is True
+    assert client.calls[-1][0] == "system.stop"
+    assert [m for m, _ in client.calls].count("motion.update") == 1
+    assert report["tests"][-1]["safety_stop_error"] == "USB disconnected"
+    assert "Power off" in report["operator_action"]

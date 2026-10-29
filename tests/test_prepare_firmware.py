@@ -37,3 +37,4 @@ def test_patch_upstream_tree(tmp_path: Path, monkeypatch) -> None:
     assert (main / "main.cpp").read_text().count("AppExternalControl") == 1
     cmake_text = (main / "CMakeLists.txt").read_text()
     assert cmake_text.count("esp_driver_usb_serial_jtag") == 1
+    assert cmake_text.count("espressif__led_strip") == 1

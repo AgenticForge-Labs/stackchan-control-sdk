@@ -3,10 +3,10 @@
 ## Repository boundary
 
 ```text
-robo-director
+forge-studios
   owns scene timelines and WAV playback
         |
-robo-puppeteer
+forge-puppeteer
   owns character intent and semantic performances
         |
 stackchan-control-sdk

@@ -91,3 +91,169 @@ The report determines the next implementation step:
 - complete native state is reliable: construct and test fully populated animation keyframes.
 - avatar JSON differs from the public repository: capture retail payloads and update the models.
 - lights or face fields are incomplete: expand the native capability schema without adding AgenticForge character semantics.
+
+## Workstation preparation — 2026-10-28
+
+Remote `main` was fetched and verified at
+`36207e1be1879dcaa31ba5cae1f7155b65eba3e4`; no open PRs were found.
+The Linux workstation enumerated an Espressif `303a:1001` USB Serial/JTAG
+interface at `/dev/ttyACM1`. This is a candidate device identity, not a
+successful protocol handshake; the operator confirmed the body USB connector. A separate QinHeng serial device must not be used for this probe.
+
+The operator reported factory firmware v1.4.4 and no EXT CONTROL app. A full
+16 MB flash backup was read and verified against the device (digest matched)
+before installation. The NVS snapshot contains servo zero offsets 475 and 596,
+with AI startup disabled. The original NVS partition matches the prepared layout
+and is excluded from the flash manifest. Hidden settings remain in the private
+local backup; post-install runtime calibration is not yet confirmed.
+ESP-IDF 5.5.4 preparation/build passed locally using the CI container. The pinned
+upstream identifies as 1.4.3, distinct from the retail 1.4.4 image. Installation
+with `idf.py -p /dev/ttyACM1 flash` succeeded; all five image hashes verified.
+Automatic post-flash reset left the unit in download mode with a blank screen;
+passive USB output reported `waiting for download`. A brief manual RST press
+resolved this, and the operator launched EXT CONTROL. No second flash was needed.
+
+Local preparation logs and USB enumeration are retained under ignored
+`hardware-reports/`, along with Python check results. Raw generated reports and
+firmware binaries must remain outside source control.
+
+Official recovery: [M5Stack StackChan documentation](https://docs.m5stack.com/en/StackChan)
+describes restoring the official StackChan image through M5Burner. It also
+describes entering download mode by holding RST for three seconds until the
+indicator turns green, then releasing it. Both USB connectors support data;
+M5Stack recommends the base connector. Record the installed version and settings
+and obtain the appropriate official recovery image before flashing. Recovery to
+a factory image does not establish preservation of device-specific settings.
+
+Probe failures now abort further commands after a motion error, negative motion
+observation, or interruption, and attempt `system.stop`. Restoration is skipped
+after such an abort because it would issue another physical move. If stopping
+cannot be confirmed or motion is abnormal, power off before further testing.
+A normal completed run still restores the captured initial pose. Firmware-reported
+angles and settled flags remain reported state until independently observed.
+
+
+### First retail results
+
+The SDK implementation tested was
+`20e54995019825974952c922930bcbf5c68cfcc1` (subsequent commits document results).
+Python validation passed: 23 tests, Ruff, and mypy. The exact local firmware
+identity, hashes, configuration, and container digest are retained in
+`hardware-reports/build-identity.json`; exact installation/backup/recovery commands
+are in `hardware-reports/commands.txt`. The full factory backup is 16 MB and
+passed an esptool digest comparison. These private generated artifacts remain
+ignored and are not committed.
+
+- `hello-first.log`: protocol 1.0, overlay 0.2.0, upstream V1.4.3, M5Stack
+  StackChan board, USB Serial/JTAG, native tenths-of-degree units.
+- `first.json`: face changes, original-face restoration, and distinct blue and
+  orange/red lights confirmed by the operator. Lights-off and idle stop received
+  accepted/completed events. Motion was disabled.
+- `first-motion.json`: repeated face/light checks confirmed; centered 45° pitch,
+  yaw −12°/+12°/0°, pitch 35°/55°/45°, and visual return to the initial pose all
+  confirmed smooth by the operator. No chatter, binding, or cable pulling was
+  reported. Each motion request received a matching accepted/completed pair.
+  Continuous rotation and animation playback were not run.
+
+Initial reported yaw/pitch were −2.1°/36.8°; final reported values before stop
+were −0.9°/36.8°. Restoration commanded the exact captured raw initial values,
+but final reported yaw differed by 1.2°. The operator confirmed visual return;
+these observations do not establish independently measured absolute accuracy or
+settling tolerance. Firmware state uses native feedback with a software fallback
+on invalid feedback, so reported position must not be described as independent
+measurement.
+
+`system.stop` completed after motion had settled. In-flight cancellation and
+physical interruption remain unverified; the current probe does not exercise
+that case. No physical stall was induced. Active-stop validation requires a
+separately reviewed bounded test before it is treated as proven. Reconnect and
+host-loss watchdog behavior also remain follow-up work. USB worked throughout
+both staged runs; these results do not justify adding another transport.
+
+Integration status: first-session hardware checks passed; changes await review. No Forge Puppeteer
+integration was started. Organization-wide `architecture.md` and `development.md`
+could not be located; repository architecture and current Puppeteer boundary
+instructions were inspected instead.
+
+
+### Supervised active-stop follow-up
+
+After the operator confirmed readiness, the host revision
+`e64dd7db2184765efe9d39016a8808275defaaa2` added and physically exercised:
+
+```bash
+python tools/verify_active_stop.py --port /dev/ttyACM1 --allow-motion \
+  --output hardware-reports/active-stop.json
+```
+
+This test centers at yaw 0°/pitch 45°, then requests yaw +12° with native speed
+60 and sends `system.stop` 0.2 seconds after acceptance. The native speed field
+maps to spring parameters; it is not a degrees-per-second guarantee. The host
+retains both command identities rather than discarding the cancelled motion
+while waiting for the stop response. No firmware changes or reflashing were needed.
+
+The device emitted motion `accepted`, stop `accepted`, motion `cancelled`, and
+stop `completed`, all with matching request IDs. Stop completion was received
+approximately 0.215 seconds after motion acceptance on the host; this is event
+receipt timing, not an independently measured physical stopping latency.
+The operator confirmed the small movement stopped early and stayed still,
+without chatter or binding. Two state samples 0.7 seconds apart both reported
+yaw −0.9°/pitch 43.4° and both movement flags false. The operator then confirmed
+smooth restoration. Initial/final reported yaw matched at −0.9°; initial pitch
+was 36.8° and final pitch was 37.8°, a 1.0° difference. Exact captured initial
+raw targets were sent for restoration. Absolute positioning/settling accuracy
+remains limited by the native feedback/controller behavior and was not calibrated
+or independently measured during this session.
+
+The active-stop test completes the initial staged hardware validation, including
+stopping, completion identities, and restoration. It does not establish production
+reconnect, host-loss, long-duration reliability, or a positioning tolerance.
+Those remain follow-up work before production orchestration. The earlier
+in-flight-stop limitation above describes the original staged probe; this
+follow-up resolves it for one supervised bounded interruption.
+
+Python validation after the host addition: 26 tests, Ruff, and mypy passed.
+Generated evidence remains under ignored `hardware-reports/`; this document
+contains the source-controlled findings. No Forge Puppeteer integration has begun.
+
+
+### Larger filming face and redraw regression
+
+The operator requested the stock shapes fill more of the display. EXT CONTROL
+now scales the entire stock 320×240 avatar panel uniformly about its center,
+using LVGL scale 435/256 (approximately 1.7×). This preserves feature shapes,
+relative positions, and existing expression parameters; it applies to EXT CONTROL.
+The operator confirmed the face looked larger after installation.
+
+After replaying the same talking/surprised mouth sequence, the operator observed
+vertical streaks near the mouth's left edge. This first appeared with panel
+scaling. The overlay now invalidates the full active screen after applying
+`avatar.update`, so shrinking features repaint the previous frame's background.
+This is consistent with stale transformed partial-redraw pixels, although the
+exact LVGL internal cause was not independently isolated.
+
+Firmware/SDK revision `c1dffadf5db05e969a5c96d3ba6317b02538e469` was built with
+ESP-IDF 5.5.4 and installed with `idf.py -p /dev/ttyACM1 flash`; all five image
+hashes verified. Python checks passed: 26 tests, Ruff, and mypy. Following a
+manual RST/relaunch of EXT CONTROL, the exact host face sequence was replayed
+and the original face restored. The operator reported “looks good,” confirming
+the visible streak regression cleared in that replay. No servo commands were
+sent for this visual validation; motion was not revalidated on this firmware.
+
+The visual replay is the regression check; Python tests do not exercise LVGL's
+physical display output. Local evidence includes `filming-redraw-build-identity.json`,
+`filming-redraw-build.log`, `filming-redraw-flash.log`,
+`talking-surprise-redraw-regression.json`, and `filming-artifact-observation.json`
+under ignored `hardware-reports/`. Previous firmware artifacts are retained there
+for comparison. Native animation playback remains gated: these demonstrations
+use timed host `avatar.update` messages and do not enable firmware animations.
+
+### External NeoHEX follow-up
+
+One NeoHEX 37 board on side Port A was validated at firmware/SDK
+`f50440d917331f2c7c6979966ebf5cc1b3c69a82`. Dim red/green/blue, automatic
+lights-off after frame loss, all three streamed light shows, and final lights-off
+were confirmed by the operator. Firmware rejected malformed/count/brightness
+requests before initializing the peripheral. See [NeoHEX findings](neohex.md)
+for limits and evidence paths. The new firmware retained the filming layout and
+redraw change; no servo commands were sent during NeoHEX validation.

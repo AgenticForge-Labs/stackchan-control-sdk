@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include "neohex37.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -21,6 +22,7 @@ public:
 private:
     static constexpr size_t kMaxLineBytes = 16 * 1024;
 
+    NeoHex37 _neohex;
     bool _available = false;
     bool _owns_driver = false;
     bool _discard_until_newline = false;

@@ -9,13 +9,13 @@ This repository exposes **StackChan-native capabilities**:
 - yaw and pitch motion
 - eye and mouth feature updates
 - complete native animation/dance keyframes
-- RGB lighting
+- built-in RGB lighting and a 37-pixel NeoHEX on Port A
 - stock Avatar WebSocket packet framing
 - mocks for development without hardware
 - a pinned external-control firmware overlay
 - a staged USB hardware capability probe
 
-It intentionally does **not** define AgenticForge emotions, character personalities, scene directions, dialogue, or WAV playback. Those belong in `robo-puppeteer` and `robo-director`.
+It intentionally does **not** define AgenticForge emotions, character personalities, scene directions, dialogue, or WAV playback. Those belong in `forge-puppeteer` and `forge-studios`.
 
 ## Current status
 
@@ -31,7 +31,13 @@ This repository now contains the software needed up to the physical-hardware bou
 6. a conservative capability-test CLI and evidence report;
 7. a successful full build under ESP-IDF 5.5.4 with retained flash artifacts.
 
-The overlay is not yet claimed to work on retail hardware. The remaining gate is to flash it, identify the exposed USB data port, and observe the real device behavior.
+The first retail USB session on 2026-10-28 passed handshake, operator-confirmed
+face and lighting updates, bounded yaw/pitch motion, and visual restoration.
+Matching command completion and stop acknowledgments were recorded, including
+a supervised active-motion cancellation and restoration follow-up. This is
+initial hardware evidence: independent positioning accuracy, reconnects, and
+host-loss behavior remain unverified. See
+[`docs/hardware-capability-test.md`](docs/hardware-capability-test.md).
 
 ## Angle units
 
@@ -92,7 +98,22 @@ stackchan-probe run \
 
 See [`docs/hardware-capability-test.md`](docs/hardware-capability-test.md) before connecting or flashing hardware.
 
+## External NeoHEX shows
+
+With one NeoHEX 37 connected to side Port A, extension 0.3.0 adds bounded
+per-pixel lighting over USB. After the dim hardware check:
+
+```bash
+python tools/neohex_show.py --port DETECTED_PORT --show all \
+  --brightness 8 --seconds 6 --output hardware-reports/neohex-shows.json
+```
+
+See [NeoHEX setup, limits, and timeout](docs/neohex.md). This leaves the face
+and servos unchanged.
+
 ## Development
+
+The driver regression test also requires a C++ compiler (`c++`).
 
 ```bash
 python -m venv .venv

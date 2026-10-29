@@ -100,3 +100,14 @@ These semantics must be checked on the retail device before they are treated as 
 - the service rejects concurrent motion commands instead of orphaning completion events
 - face tests begin from a reported state snapshot and restore the fields they change
 - disconnect watchdog behavior beyond app exit remains follow-up work after the first hardware test
+
+## External NeoHEX lighting (extension 0.3.0)
+
+`external_lights.update` is additive to protocol 1.0. It requires exactly 37
+`#RRGGBB` strings in `params.pixels` and integer `params.brightness` in `0..32`.
+It controls GPIO 2 on Port A and never changes servo or face state. An accepted
+frame completes after driver refresh; invalid data fails before peripheral use.
+Capabilities report the fixed pin, count, brightness ceiling, and 1500 ms timeout.
+State reports commanded illumination and driver errors, not physical detection.
+The running service clears external LEDs if frames stop for 1500 ms, on
+`system.stop`, and on app exit. See [NeoHEX details](../docs/neohex.md).

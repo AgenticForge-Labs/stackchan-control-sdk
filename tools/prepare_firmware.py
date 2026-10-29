@@ -55,9 +55,7 @@ def patch_upstream_tree(repository_root: Path) -> None:
     main_text = insert_once(
         main_text,
         anchor="        GetMooncake().installApp(std::make_unique<AppAvatar>());\n",
-        insertion=(
-            "        GetMooncake().installApp(std::make_unique<AppExternalControl>());\n"
-        ),
+        insertion=("        GetMooncake().installApp(std::make_unique<AppExternalControl>());\n"),
         label=str(main_cpp),
     )
     main_cpp.write_text(main_text, encoding="utf-8")
@@ -68,6 +66,12 @@ def patch_upstream_tree(repository_root: Path) -> None:
         cmake_text,
         anchor="                        esp_driver_uart\n",
         insertion="                        esp_driver_usb_serial_jtag\n",
+        label=str(cmake),
+    )
+    cmake_text = insert_once(
+        cmake_text,
+        anchor="                        esp_driver_usb_serial_jtag\n",
+        insertion="                        espressif__led_strip\n",
         label=str(cmake),
     )
     cmake.write_text(cmake_text, encoding="utf-8")
