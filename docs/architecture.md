@@ -44,3 +44,38 @@ The local protocol deliberately exposes a smaller surface than the upstream inte
 ## Safety ownership
 
 Host-side checks improve usability but are not the safety boundary. Firmware validates native angle and speed ranges, rejects concurrent motion commands, and prevents dangerous motion modes from entering the upstream parser. Rate limits, a host-loss watchdog, reconnect behavior, and hardware-observed settling rules remain firmware work after the first physical test.
+
+### Concurrent external-control event routing
+
+`RoutedSerialClient` is a separate USB external-control transport, not the stock
+packet transport. It owns one serial reader and routes events by command ID;
+callers may submit `system.stop` while a motion is pending. `wait()` returns the
+terminal events including firmware failures and cancellations. A timeout or lost
+connection leaves the outcome unknown, and a later event can be inspected through
+`wait()` or `events()` while the connection remains alive. There is no automatic
+reconnect or command retry. The caller must explicitly close the client. This is a
+transport primitive, not yet the validated native-control facade or a hardware
+safety guarantee. The reader requires a finite wire timeout for timely shutdown.
+
+The `ExternalControl` facade uses the router with separate native face, head,
+built-in light, and NeoHEX methods. Capabilities are intersected with an explicit
+host allowlist; unknown firmware capabilities are not promoted to controls.
+Motion is admitted one at a time, checked against live firmware-reported limits,
+and invalidated if stop is requested during preflight. An unconfirmed stop
+inhibits subsequent motion for that facade instance. State and completion are
+firmware-reported and do not constitute independently measured settling.
+
+The SDK capability registry includes versioned JSON Schemas for the supported
+USB wire payloads. CLI discovery returns those schemas only for controls also
+advertised by the connected firmware. The schemas describe static host protocol
+bounds; device-reported limits and the typed facade's validation remain mandatory
+at execution. JSON Schema integer handling may accept numerically integral JSON
+floats; the typed facade additionally requires actual integers for native servo
+and face values. Importing or inspecting the registry does not open a device.
+
+USB writes have a finite configured timeout and are serialized. The router does
+not perform a blocking output-drain operation after each write; a successful write
+is not completion evidence, and only a terminal firmware event supplies that
+outcome. A failed or partial write leaves the outcome unknown and makes the
+connection unavailable. These bounds are transport safeguards, not a guaranteed
+stop latency or physical stop qualification.

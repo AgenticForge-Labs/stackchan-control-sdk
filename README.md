@@ -161,3 +161,63 @@ See:
 ## License
 
 AgenticForge Labs code in this repository is MIT licensed. M5Stack code remains upstream and any prepared or distributed modified firmware must retain M5Stack's original copyright and MIT notices. See [`NOTICE`](NOTICE).
+
+## USB external-control facade
+
+The `ExternalControl` facade uses `RoutedSerialClient` for the EXT CONTROL USB
+protocol; it is separate from the stock packet `StackChan` API. Open it explicitly
+with `RoutedSerialClient.open(port)` and close the client after use. The installed
+`stackchan` command exposes discovery, state, head, face, builtin lights, NeoHEX,
+and stop; run `stackchan --help` and `stackchan --port PORT COMMAND --help` for
+arguments. Outputs and runtime errors are JSON. For example:
+
+```bash
+stackchan --port /dev/ttyACM0 discover
+stackchan --port /dev/ttyACM0 state
+stackchan --port /dev/ttyACM0 face --feature mouth --size 10
+```
+
+Head targets use integer tenths of a degree and a mandatory native speed. They
+are checked against protocol bounds and the current firmware-reported limits.
+Face, lights, and motion are separate typed operations. The firmware's reported
+positions and completion are its model/servo state, not independent measurement.
+The SDK has no automatic reconnect or motion retry: timeout or connection loss
+leaves the command outcome unknown. A pending unknown motion inhibits another
+motion in the same facade. Failed or unconfirmed stop inhibits further motion in
+that facade; inspect the device and resolve safety before creating a new session.
+A stop request bypasses motion waiting and invalidates motion preflight. Hardware
+stop behavior and host-loss handling are not safety-rated or fully qualified.
+The single NeoHEX frame operation does not sustain lighting: firmware clears it
+unless refreshed within its advertised watchdog period. Native animation remains
+gated. Do not run simultaneous clients against the same serial port.
+
+## Local native assets
+
+`stackchan assets --pack examples/assets` lists the explicitly selected pack
+without opening serial. Each JSON file contains a versioned pose or sequence of
+host-driven typed face, head, or built-in light operations. The loader rejects
+invalid, out-of-order, oversized, duplicate, and unsupported assets and returns a
+SHA-256 revision of the original file. These are example data, not a firmware
+emotion library or evidence of hardware suitability.
+Catalog descriptors use `stackchan/`-prefixed IDs, report resources derived
+from the steps, and mark device compatibility as unchecked. Duration is unknown:
+the last requested start time is not evidence that movement has completed.
+Playback checks that the in-memory asset still matches its original file snapshot
+and revision; reloading changed file contents produces a different revision.
+
+An operator can select an exact ID and revision with `stackchan --port PORT play
+--pack PACK --id ID --revision sha256:...`. The Python equivalent is `load_asset`
+or `list_assets` followed by `play_asset(robot, asset, expected_revision=...)`.
+Playback validates the entire in-memory asset and revision before the first
+operation, then executes steps sequentially, rechecking device capabilities and
+motion limits on each operation. Late steps are explicitly delayed until the prior
+step completes; result records include requested and observed host timings. This is
+not a hard real-time scheduler. A concurrent `robot.stop()` interrupts future
+steps; its result must be checked separately. If an operation fails or times out,
+playback raises immediately and does not infer a safe outcome or automatically
+retry; the caller remains responsible for requesting and verifying stop. Native
+firmware animation is still gated and is never used for these assets.
+
+For sustained NeoHEX output, `sustain_neohex` and the `neohex --duration`
+option refresh against the firmware-advertised watchdog and explicitly clear the
+frame. See [NeoHEX details](docs/neohex.md) for cancellation and failure semantics.

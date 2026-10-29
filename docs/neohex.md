@@ -115,3 +115,18 @@ A 12-second follow-up with radial brightness decay is retained as
 `hardware-reports/neohex-organic-fade.json`; frame completion and final off were
 acknowledged, and the operator confirmed the bright-center/fading-edge version
 looked better.
+
+## Sustained SDK output
+
+`sustain_neohex(robot, frame, duration_s=...)` refreshes a static frame using
+one third of the firmware-advertised watchdog interval (capped at 0.5 seconds)
+for at most 300 seconds. It checks capabilities on each update, rejects a missed
+watchdog interval, and sends an off frame on completion or cancellation. Pass a
+`threading.Event` to request cancellation. A concurrent `robot.stop()` invalidates
+future updates and performs its own clear; inspect the stop result separately.
+A failed or unconfirmed off frame raises `LightingCleanupError` rather than
+claiming successful cleanup. Driver acknowledgements are not independent
+measurement of illumination, and scheduling, process death, and firmware failure
+can still interrupt output. `stackchan --port PORT neohex --color '#ff0000'
+--duration 2` uses the same primitive. No hardware qualification is implied by
+the fake-transport tests.
