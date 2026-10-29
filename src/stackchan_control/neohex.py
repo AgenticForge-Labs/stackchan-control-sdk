@@ -10,6 +10,15 @@ from typing import Any
 PIXEL_COUNT = 37
 MAX_BRIGHTNESS = 32
 
+# M5Stack's NeoHEX front PCB photograph shows serpentine rows of 4/5/6/7/6/5/4.
+# LED 1 is at the top left; LED 37 is at the bottom right. Center is index 18.
+# https://static-cdn.m5stack.com/resource/docs/products/unit/neohex/neohex_04.webp
+NEOHEX_RADII = tuple(
+    math.hypot(column - (length - 1) / 2, (row - 3) * math.sqrt(3) / 2)
+    for row, length in enumerate((4, 5, 6, 7, 6, 5, 4))
+    for column in (range(length) if row % 2 == 0 else reversed(range(length)))
+)
+
 
 @dataclass(frozen=True)
 class NeoHexFrame:
@@ -39,12 +48,17 @@ class NeoHexFrame:
 
 
 def light_show_frame(name: str, seconds: float, brightness: int = 8) -> NeoHexFrame:
-    """Generate colors in wire order; does not assume a physical pixel layout."""
+    """Generate native colors; radiate uses the standard NeoHEX PCB layout."""
     if not math.isfinite(seconds) or seconds < 0:
         raise ValueError("time must be finite and nonnegative")
     colors = []
     for i in range(PIXEL_COUNT):
-        if name == "rainbow":
+        if name == "radiate":
+            radius = (seconds % 2.4) / 2.4 * 4.2
+            distance = NEOHEX_RADII[i]
+            value = max(0.0, 1 - abs(distance - radius) / 0.8) ** 1.5
+            hue = (seconds * 0.12 + distance * 0.10) % 1
+        elif name == "rainbow":
             hue, value = (i / PIXEL_COUNT + seconds * 0.12) % 1, 1.0
         elif name == "comets":
             head = seconds * 12 % PIXEL_COUNT
