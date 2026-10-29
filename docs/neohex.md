@@ -50,9 +50,10 @@ python tools/neohex_show.py --port DETECTED_PORT --show all \
   --brightness 8 --seconds 6 --output hardware-reports/neohex-shows.json
 ```
 
-Available shows are `rainbow`, `comets`, and `sparkles`. They stream at a target
+Available shows are `rainbow`, `comets`, `sparkles`, `radiate`, and `organic`. They stream at a target
 20 frames/second and end with an all-off frame, including on interruption.
-They use wire pixel indices; no geometric ring mapping is assumed. They send
+The first three use wire pixel indices. `radiate` and `organic` use the
+standard NeoHEX serpentine row layout for center-out waves. They send
 no servo or face commands. `NeoHexFrame` and `light_show_frame()` are reusable
 native SDK controls; higher-level character performance stays in Puppeteer.
 
@@ -90,3 +91,27 @@ The complete factory recovery backup remains preserved. Python checks passed:
 46 tests (including the actual-driver C++ peripheral test), Ruff, and mypy.
 No claim is made about full-brightness power capacity, additional boards,
 physical ring/index mapping, or operation on other Grove ports.
+
+
+## Center-out variations
+
+`--show radiate` repeats expanding color waves approximately every 2.4 seconds.
+The standard layout is seven serpentine rows of 4/5/6/7/6/5/4 LEDs; the center
+is zero-based index 18. Radial distances come from the triangular grid shown in
+[M5Stack's front PCB photograph](https://static-cdn.m5stack.com/resource/docs/products/unit/neohex/neohex_04.webp).
+The operator confirmed this produces center-out motion on the connected board.
+The 15-second run is retained as `hardware-reports/neohex-radiate.json`.
+
+`--show organic` is a faster variation, approximately a 1.15-second cycle with
+smoothly varying timing, soft Gaussian edges, subtle intensity variation, and
+slower flowing color changes. Its pulse amplitude falls from full scale at the
+center to approximately 30% at the outermost pixels, without increasing the
+overall brightness setting. Its first 15-second run is retained as
+`hardware-reports/neohex-organic.json`. Both are host-generated native frames:
+no firmware flash, face change, or servo command is required. Both finish off.
+Software validation for these additions passed 52 tests, Ruff, and mypy.
+The operator confirmed center-out waves and liked the faster organic variation.
+A 12-second follow-up with radial brightness decay is retained as
+`hardware-reports/neohex-organic-fade.json`; frame completion and final off were
+acknowledged, and the operator confirmed the bright-center/fading-edge version
+looked better.
