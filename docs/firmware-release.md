@@ -47,6 +47,8 @@ Stop if any hash fails. Packaging writes the archive atomically, so errors do no
 
 Packaging is deterministic **for identical input files and source metadata**. This is distinct from proving two separate firmware compilations are byte-for-byte identical.
 
+The current release target is the **pinned M5Stack StackChan partition layout**, not arbitrary ESP32-S3 boards: bootloader at `0x0`, partition table at `0x8000`, OTA app at `0x20000`. The upstream `firmware/partitions.csv` places NVS/calibration at `0x9000–0xCFFF`; packaging rejects flash image erase sectors that touch that interval, and also rejects missing required flash images. Any change in upstream partition layout requires explicit review of these bounds and new hardware validation.
+
 The packaging command never invokes esptool or accesses USB hardware. It rejects missing images, unsafe paths, any explicitly referenced NVS image, conflicting ESP-IDF flash arguments, the wrong target chip, unaligned flash offsets, overlapping erase sectors and images that extend beyond the declared flash capacity. **This is not a guarantee that the partition layout preserves existing calibration.** An operator must verify the layout and take a restorable factory backup before flashing.
 
 Unzip the bundle and follow `FLASHING.md` on a compatible ESP32-S3 StackChan. Replace `YOUR_PORT` with the confirmed USB Serial/JTAG port, perform the flash manually, open EXT CONTROL, and use `stackchan-probe hello` before any motion commands. Follow `docs/hardware-capability-test.md` for staged safety checks.
