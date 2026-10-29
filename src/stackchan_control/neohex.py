@@ -60,7 +60,9 @@ def light_show_frame(name: str, seconds: float, brightness: int = 8) -> NeoHexFr
             distance = NEOHEX_RADII[i]
             envelope = math.exp(-0.5 * ((distance - radius) / 0.55) ** 2)
             shimmer = 0.88 + 0.12 * math.sin(seconds * 2.1 + i * 0.7)
-            value = envelope * shimmer
+            # Keep the source bright and let the pulse lose energy toward the rim.
+            radial_fade = 1 - 0.7 * (distance / 3) ** 1.2
+            value = envelope * shimmer * radial_fade
             hue = (seconds * 0.075 + distance * 0.06) % 1
         elif name == "radiate":
             radius = (seconds % 2.4) / 2.4 * 4.2

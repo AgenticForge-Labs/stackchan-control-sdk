@@ -87,3 +87,14 @@ def test_organic_wave_is_soft_and_faster_than_radiate():
     levels = {max(int(c[j : j + 2], 16) for j in (1, 3, 5)) for c in fast.pixels}
     assert len(levels) > 3
     assert energy(fast) > 0
+
+
+def test_organic_pulse_loses_energy_toward_outer_edge():
+    center = light_show_frame("organic", 0).pixels[18]
+    outer_frame = light_show_frame("organic", 0.85)
+
+    def peak(color):
+        return max(int(color[j : j + 2], 16) for j in (1, 3, 5))
+
+    outer_peak = max(peak(c) for i, c in enumerate(outer_frame.pixels) if NEOHEX_RADII[i] == 3)
+    assert 0 < outer_peak < peak(center) * 0.4
