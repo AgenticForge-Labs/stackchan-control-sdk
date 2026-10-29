@@ -134,7 +134,8 @@ python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0
 ```
 
 The resulting ZIP contains the actual ESP-IDF flash images and offsets, checksum manifest,
-M5Stack license, and manual flashing instructions. It does **not** flash hardware,
+M5Stack license, offline `SHA256SUMS` verification, checked flash offsets,
+and manual flashing instructions. It does **not** flash hardware,
 erase NVS, or include a factory image. The repository is private, so there is no
 public installer yet. See [firmware releases](docs/firmware-release.md) and
 [hardware safety](docs/hardware-capability-test.md) before installation.
