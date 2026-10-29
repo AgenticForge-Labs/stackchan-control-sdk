@@ -25,6 +25,7 @@ dependencies = []
 websocket = ["websockets>=13,<16"]
 serial = ["pyserial>=3.5,<4"]
 dev = [
+  "jsonschema>=4.18,<5",
   "mypy>=1.11",
   "pytest>=8.3",
   "ruff>=0.9",
@@ -33,6 +34,7 @@ dev = [
 ]
 
 [project.scripts]
+stackchan = "stackchan_control.cli:main"
 stackchan-probe = "stackchan_control.hardware_probe:main"
 
 [project.urls]
