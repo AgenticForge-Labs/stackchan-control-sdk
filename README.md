@@ -124,6 +124,26 @@ ruff check .
 mypy
 ```
 
+## Firmware installation bundles
+
+A clean source build always begins with a pinned M5Stack checkout and our tracked overlay:
+
+```bash
+python3 tools/prepare_firmware.py --refresh --build
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+```
+
+The resulting ZIP contains the actual ESP-IDF flash images and offsets, checksum manifest,
+M5Stack license, and manual flashing instructions. It does **not** flash hardware,
+erase NVS, or include a factory image. The repository is private, so there is no
+public installer yet. See [firmware releases](docs/firmware-release.md) and
+[hardware safety](docs/hardware-capability-test.md) before installation.
+
+The source checkout is pinned, but some Git dependencies, ESP-IDF component
+resolutions, build timestamps, and the build-container digest are not yet locked.
+Identical ZIP output from identical inputs does **not** establish bit-for-bit
+reproducible firmware compilation.
+
 ## Firmware strategy
 
 Do not rewrite StackChan firmware. The overlay adds one launcher app and one local transport while reusing M5Stack's existing motion, avatar, animation, calibration, and hardware code. The full upstream tree is fetched at the commit in `firmware/upstream.lock.json`, so upstream attribution and history remain clear.
