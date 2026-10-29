@@ -47,7 +47,8 @@ def test_package_includes_only_flash_files_with_hashes(tmp_path: Path) -> None:
         assert z.read("M5STACK-LICENSE") == b"M5Stack MIT"
         manifest = json.loads(z.read("manifest.json"))
         assert manifest["source_commit"] == "b" * 40
-        assert next(f for f in manifest["files"] if f["path"] == "stack-chan.bin")["sha256"] == hashlib.sha256(b"APP").hexdigest()
+        app = next(f for f in manifest["files"] if f["path"] == "stack-chan.bin")
+        assert app["sha256"] == hashlib.sha256(b"APP").hexdigest()
         assert "--port YOUR_PORT" in z.read("FLASHING.md").decode()
         assert "0x0 bootloader/bootloader.bin" in z.read("FLASHING.md").decode()
         assert "sha256sum -c SHA256SUMS" in z.read("FLASHING.md").decode()
