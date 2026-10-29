@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -152,7 +152,9 @@ def package(build_dir: Path, output: Path, *, root: Path = ROOT, commit: str | N
         "schema": 1,
         "sdk_version": version,
         "flash_size_bytes": flash_capacity,
-        "source_revision_note": "SDK repository commit at packaging; firmware build lineage not independently verified",
+        "source_revision_note": (
+            "SDK repository commit at packaging; firmware build lineage not independently verified"
+        ),
         "source_commit": revision,
         "upstream": upstream,
         "files": [
