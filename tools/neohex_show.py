@@ -16,7 +16,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", required=True)
     parser.add_argument(
-        "--show", choices=["rainbow", "comets", "sparkles", "radiate", "all"], default="all"
+        "--show",
+        choices=["rainbow", "comets", "sparkles", "radiate", "organic", "all"],
+        default="all",
     )
     parser.add_argument("--seconds", type=float, default=6)
     parser.add_argument("--brightness", type=int, default=8)
@@ -34,7 +36,9 @@ def main() -> int:
             if not hello or "external_lights.update" not in hello.get("capabilities", []):
                 raise RuntimeError("firmware does not advertise external lights")
             for name in (
-                ["rainbow", "comets", "sparkles", "radiate"] if args.show == "all" else [args.show]
+                ["rainbow", "comets", "sparkles", "radiate", "organic"]
+                if args.show == "all"
+                else [args.show]
             ):
                 print(name, flush=True)
                 evidence["shows"].append(name)

@@ -53,7 +53,16 @@ def light_show_frame(name: str, seconds: float, brightness: int = 8) -> NeoHexFr
         raise ValueError("time must be finite and nonnegative")
     colors = []
     for i in range(PIXEL_COUNT):
-        if name == "radiate":
+        if name == "organic":
+            # Positive but varying phase speed gives a living pulse without reversal.
+            phase = seconds / 1.15 + 0.07 * math.sin(seconds * 0.9)
+            radius = (phase % 1) * 4.2
+            distance = NEOHEX_RADII[i]
+            envelope = math.exp(-0.5 * ((distance - radius) / 0.55) ** 2)
+            shimmer = 0.88 + 0.12 * math.sin(seconds * 2.1 + i * 0.7)
+            value = envelope * shimmer
+            hue = (seconds * 0.075 + distance * 0.06) % 1
+        elif name == "radiate":
             radius = (seconds % 2.4) / 2.4 * 4.2
             distance = NEOHEX_RADII[i]
             value = max(0.0, 1 - abs(distance - radius) / 0.8) ** 1.5

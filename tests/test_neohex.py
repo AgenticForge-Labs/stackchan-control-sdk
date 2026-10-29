@@ -24,7 +24,7 @@ def test_invalid_colors(value):
         NeoHexFrame.solid(value)
 
 
-@pytest.mark.parametrize("name", ["rainbow", "comets", "sparkles", "radiate"])
+@pytest.mark.parametrize("name", ["rainbow", "comets", "sparkles", "radiate", "organic"])
 def test_show_generates_valid_changing_frames(name):
     a = light_show_frame(name, 0)
     b = light_show_frame(name, 0.5)
@@ -71,3 +71,19 @@ def test_radiate_moves_from_center_outward_and_changes_color():
     )
     assert all(outer.pixels[i] != "#000000" for i, r in enumerate(NEOHEX_RADII) if r == 3)
     assert repeated.pixels[18] != start.pixels[18]
+
+
+def test_organic_wave_is_soft_and_faster_than_radiate():
+    def energy(frame):
+        return sum(int(c[j : j + 2], 16) for c in frame.pixels for j in (1, 3, 5))
+
+    # Around one second the organic wave has reached the edge; the old wave has not.
+    fast = light_show_frame("organic", 0.85)
+    slow = light_show_frame("radiate", 0.85)
+    outer = [i for i, r in enumerate(NEOHEX_RADII) if r == 3]
+    assert sum(int(fast.pixels[i][1:], 16) for i in outer) > 0
+    assert all(slow.pixels[i] == "#000000" for i in outer)
+    # Gaussian falloff lights more than one radial band at intermediate strengths.
+    levels = {max(int(c[j : j + 2], 16) for j in (1, 3, 5)) for c in fast.pixels}
+    assert len(levels) > 3
+    assert energy(fast) > 0
