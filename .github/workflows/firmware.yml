@@ -5,6 +5,8 @@ on:
     paths:
       - "firmware/**"
       - "tools/prepare_firmware.py"
+      - "tools/package_firmware.py"
+      - "tests/test_package_firmware.py"
       - ".github/workflows/firmware.yml"
   workflow_dispatch:
 
@@ -38,6 +40,14 @@ jobs:
         with:
           name: firmware-build-log
           path: .firmware-worktree/StackChan/firmware/firmware-build.log
+      - name: Package manual-install firmware bundle
+        run: |
+          python3 tools/package_firmware.py --output "$GITHUB_WORKSPACE/stackchan-external-control.zip"
+      - name: Upload installation bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: stackchan-manual-install-bundle
+          path: stackchan-external-control.zip
       - name: Upload firmware binaries
         if: success()
         uses: actions/upload-artifact@v4
