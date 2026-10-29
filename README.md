@@ -9,7 +9,7 @@ This repository exposes **StackChan-native capabilities**:
 - yaw and pitch motion
 - eye and mouth feature updates
 - complete native animation/dance keyframes
-- RGB lighting
+- built-in RGB lighting and a 37-pixel NeoHEX on Port A
 - stock Avatar WebSocket packet framing
 - mocks for development without hardware
 - a pinned external-control firmware overlay
@@ -98,7 +98,22 @@ stackchan-probe run \
 
 See [`docs/hardware-capability-test.md`](docs/hardware-capability-test.md) before connecting or flashing hardware.
 
+## External NeoHEX shows
+
+With one NeoHEX 37 connected to side Port A, extension 0.3.0 adds bounded
+per-pixel lighting over USB. After the dim hardware check:
+
+```bash
+python tools/neohex_show.py --port DETECTED_PORT --show all \
+  --brightness 8 --seconds 6 --output hardware-reports/neohex-shows.json
+```
+
+See [NeoHEX setup, limits, and timeout](docs/neohex.md). This leaves the face
+and servos unchanged.
+
 ## Development
+
+The driver regression test also requires a C++ compiler (`c++`).
 
 ```bash
 python -m venv .venv

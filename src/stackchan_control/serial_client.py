@@ -7,6 +7,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .external_protocol import ExternalEvent, decode_event_line, encode_command
+from .neohex import NeoHexFrame
 
 
 class SerialControlError(RuntimeError):
@@ -107,3 +108,8 @@ class SerialControlClient:
         if self._serial is None:
             raise SerialControlError("serial client is not open")
         return decode_event_line(self._serial.readline())
+
+
+    def set_external_lights(self, frame: NeoHexFrame) -> list[ExternalEvent]:
+        """Apply a NeoHEX frame. Refresh within 1.5 s to keep external LEDs lit."""
+        return self.request("external_lights.update", frame.to_dict())

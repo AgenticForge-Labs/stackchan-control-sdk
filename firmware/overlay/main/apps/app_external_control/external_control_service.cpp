@@ -8,6 +8,7 @@
 #include <apps/common/common.h>
 #include <cctype>
 #include <cstring>
+#include <cstdlib>
 #include <driver/usb_serial_jtag.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
@@ -18,7 +19,7 @@
 namespace agenticforge {
 namespace {
 constexpr const char* kPrefix = "@AF ";
-constexpr const char* kExtensionVersion = "0.2.0";
+constexpr const char* kExtensionVersion = "0.3.0";
 constexpr int kYawMinTenths = -1280;
 constexpr int kYawMaxTenths = 1280;
 constexpr int kPitchMinTenths = 30;
@@ -324,6 +325,7 @@ void ExternalControlService::poll()
         _receive_buffer.push_back(character);
     }
 
+    _neohex.poll(GetHAL().millis());
     update_completions();
 }
 
@@ -333,6 +335,7 @@ void ExternalControlService::stop()
         return;
     }
     stop_all();
+    _neohex.close();
     if (_owns_driver) {
         usb_serial_jtag_driver_uninstall();
     }
@@ -382,6 +385,13 @@ void ExternalControlService::handle_line(const std::string& line)
         capabilities.add("avatar.update");
         capabilities.add("motion.update.position_only");
         capabilities.add("lights.update");
+        capabilities.add("external_lights.update");
+        auto external = result["external_lights"].to<ArduinoJson::JsonObject>();
+        external["gpio"] = NeoHex37::kGpio;
+        external["pixel_count"] = NeoHex37::kCount;
+        external["max_brightness"] = NeoHex37::kMaxBrightness;
+        external["watchdog_ms"] = NeoHex37::kWatchdogMs;
+        external["presence_detectable"] = false;
         capabilities.add("animation.stop");
         capabilities.add("system.state");
         capabilities.add("system.stop");
@@ -421,6 +431,11 @@ void ExternalControlService::handle_line(const std::string& line)
         result["yaw_moving"] = motion.yawServo().isMoving();
         result["pitch_moving"] = motion.pitchServo().isMoving();
         result["animation_active"] = false;
+        auto external = result["external_lights"].to<ArduinoJson::JsonObject>();
+        external["initialized"] = _neohex.initialized();
+        external["commanded_lit"] = _neohex.lit();
+        external["brightness"] = _neohex.brightness();
+        external["driver_error"] = esp_err_to_name(_neohex.error());
         auto limits = result["native_angle_limits_tenths"].to<ArduinoJson::JsonObject>();
         auto yaw_limits = limits["yaw"].to<ArduinoJson::JsonArray>();
         yaw_limits.add(yaw_limit.x);
@@ -453,6 +468,10 @@ void ExternalControlService::handle_line(const std::string& line)
             send_event(_motion_command_id, "cancelled", "stopped by system.stop");
         }
         stop_all();
+        if (_neohex.error() != ESP_OK) {
+            send_event(id, "failed", "external lights did not clear");
+            return;
+        }
         send_event(id, "completed");
         return;
     }
@@ -470,6 +489,30 @@ void ExternalControlService::handle_line(const std::string& line)
         // shrinking mouth/eye bounds must not leave pixels from the previous frame.
         lv_obj_invalidate(lv_screen_active());
         send_event(id, "completed");
+        return;
+    }
+
+    if (method == "external_lights.update") {
+        auto pixels = params["pixels"];
+        auto brightness = params["brightness"];
+        if (!params.is<ArduinoJson::JsonObjectConst>() ||
+            !pixels.is<ArduinoJson::JsonArrayConst>() || pixels.size() != NeoHex37::kCount ||
+            !brightness.is<int>() || brightness.as<int>() < 0 ||
+            brightness.as<int>() > NeoHex37::kMaxBrightness) {
+            send_event(id, "failed", "requires 37 #RRGGBB pixels and integer brightness 0..32");
+            return;
+        }
+        NeoHex37::Pixels colors;
+        for (int i = 0; i < NeoHex37::kCount; ++i) {
+            if (!pixels[i].is<const char*>() || !is_hex_color(pixels[i].as<const char*>())) {
+                send_event(id, "failed", "each external pixel must use #RRGGBB");
+                return;
+            }
+            colors[i] = static_cast<uint32_t>(strtoul(pixels[i].as<const char*>() + 1, nullptr, 16));
+        }
+        send_event(id, "accepted");
+        auto result = _neohex.update(colors, brightness.as<int>(), GetHAL().millis());
+        send_event(id, result == ESP_OK ? "completed" : "failed", esp_err_to_name(result));
         return;
     }
 
@@ -541,6 +584,7 @@ void ExternalControlService::update_completions()
 
 void ExternalControlService::stop_all()
 {
+    _neohex.clear();
     _motion_command_id.clear();
     _motion_seen_moving = false;
 

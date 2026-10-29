@@ -2,6 +2,7 @@
 
 from .client import StackChan
 from .models import AvatarUpdate, FeatureUpdate, Keyframe, MotionUpdate, ServoUpdate
+from .neohex import NeoHexFrame
 from .protocol import DataType, Packet, decode_packet, encode_packet
 from .units import degrees_to_native_angle, native_angle_to_degrees
 
@@ -11,6 +12,7 @@ __all__ = [
     "FeatureUpdate",
     "Keyframe",
     "MotionUpdate",
+    "NeoHexFrame",
     "Packet",
     "ServoUpdate",
     "StackChan",
@@ -20,4 +22,4 @@ __all__ = [
     "native_angle_to_degrees",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
