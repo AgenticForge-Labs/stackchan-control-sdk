@@ -6,6 +6,7 @@ import pytest
 
 from stackchan_control.external_control import BuiltinLights, ExternalControl, FirmwareRejected
 from stackchan_control.models import AvatarUpdate, FeatureUpdate, MotionUpdate, ServoUpdate
+from stackchan_control.neohex import NeoHexFrame
 from stackchan_control.routed_serial import RoutedSerialClient, RoutedSerialError, UnknownOutcome
 
 
@@ -193,3 +194,103 @@ def test_failed_stop_inhibits_later_motion(setup):
     with pytest.raises(RoutedSerialError, match="stop is pending or unconfirmed"):
         robot.move_head(MotionUpdate(yaw=ServoUpdate(angle=10, speed=10)))
     assert not any(c["method"] == "motion.update" for c in firmware.commands)
+
+
+def test_public_execution_state_is_immutable_and_stale_actions_never_dispatch(setup):
+    from dataclasses import FrozenInstanceError
+
+    firmware, robot = setup
+    token = robot.execution_state()
+    assert token.generation == 0
+    with pytest.raises(FrozenInstanceError):
+        token.generation = 99
+    robot.stop()
+    assert robot.execution_state().generation == token.generation + 1
+
+    attempts = (
+        lambda: robot.update_face(
+            AvatarUpdate(mouth=FeatureUpdate(size=1)),
+            expected_generation=token.generation,
+        ),
+        lambda: robot.update_lights(
+            BuiltinLights(left_color="#101010"),
+            expected_generation=token.generation,
+        ),
+        lambda: robot.update_neohex(
+            NeoHexFrame.solid("#000000", 3),
+            expected_generation=token.generation,
+        ),
+        lambda: robot.move_head(
+            MotionUpdate(yaw=ServoUpdate(angle=10, speed=10)),
+            expected_generation=token.generation,
+        ),
+    )
+    for attempt in attempts:
+        with pytest.raises(RoutedSerialError, match="invalidated by stop"):
+            attempt()
+    actions = {c["method"] for c in firmware.commands}
+    assert actions.isdisjoint({
+        "avatar.update", "lights.update", "external_lights.update", "motion.update",
+    })
+
+
+def test_public_generation_rejects_invalid_values_and_conflicting_legacy_keyword(setup):
+    _firmware, robot = setup
+    update = AvatarUpdate(mouth=FeatureUpdate(size=1))
+    for invalid in (True, -1, 1.2, "0"):
+        with pytest.raises(ValueError, match="nonnegative integer"):
+            robot.update_face(update, expected_generation=invalid)
+    with pytest.raises(ValueError, match="only expected_generation"):
+        robot.update_face(update, expected_generation=0, _generation=0)
+
+
+def test_stop_while_neohex_capability_preflight_invalidates_frame(setup, monkeypatch):
+    firmware, robot = setup
+    before = robot.execution_state().generation
+    started, proceed = threading.Event(), threading.Event()
+    require = robot._require
+    errors = []
+
+    def stalled_require(capability):
+        if capability == "external_lights.update":
+            started.set()
+            assert proceed.wait(timeout=2)
+        return require(capability)
+
+    monkeypatch.setattr(robot, "_require", stalled_require)
+
+    def send_frame():
+        try:
+            robot.update_neohex(
+                NeoHexFrame.solid("#110000", 1),
+                expected_generation=before,
+            )
+        except Exception as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=send_frame)
+    worker.start()
+    assert started.wait(timeout=2)
+    robot.stop()
+    proceed.set()
+    worker.join(timeout=2)
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], RoutedSerialError)
+    assert "invalidated by stop" in str(errors[0])
+    assert not any(c["method"] == "external_lights.update" for c in firmware.commands)
+
+
+def test_unconfirmed_stop_inhibits_snapshot_and_neohex(setup):
+    firmware, robot = setup
+    token = robot.execution_state()
+    firmware.reject = "system.stop"
+    with pytest.raises(FirmwareRejected):
+        robot.stop()
+    with pytest.raises(RoutedSerialError, match="unconfirmed"):
+        robot.execution_state()
+    with pytest.raises(RoutedSerialError, match="invalidated by stop"):
+        robot.update_neohex(
+            NeoHexFrame.solid("#000000"), expected_generation=token.generation
+        )
+    assert not any(c["method"] == "external_lights.update" for c in firmware.commands)
