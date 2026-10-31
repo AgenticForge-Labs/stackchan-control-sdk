@@ -191,6 +191,35 @@ The single NeoHEX frame operation does not sustain lighting: firmware clears it
 unless refreshed within its advertised watchdog period. Native animation remains
 gated. Do not run simultaneous clients against the same serial port.
 
+## Public execution-state API for supervised automation
+
+The native USB facade exposes a frozen
+`robot.execution_state()` generation snapshot. When a manual or
+agentic workflow needs to discover capabilities or validate an asset
+before execution, pass its `generation` as
+`expected_generation=` to `move_head`, `update_face`,
+`update_lights`, `update_neohex`, or `play_asset`. The SDK
+rechecks the token under its own STOP/serial submission lock;
+a STOP during preflight invalidates the earlier token. This is
+a reusable **SDK primitive**, not an MCP dependency or permission
+to actuate hardware. Normal Python, CLI and SDK simulation retain
+their existing behavior if no generation is supplied.
+
+```python
+token = robot.execution_state()
+robot.update_face(
+    AvatarUpdate(mouth=FeatureUpdate(size=8)),
+    expected_generation=token.generation,
+)
+```
+
+The token is local to that connected facade and **not** a motion
+lease or physical-stop certificate. Use
+[the execution-generation contract](docs/execution-state.md)
+for replay/NeoHEX rules, STOP races and unqualified host-loss
+limits. Robot-to-MCP registration and performance semantics belong
+to optional Forge Puppeteer, never to this SDK.
+
 ## Local native assets
 
 `stackchan assets --pack examples/assets` lists the explicitly selected pack

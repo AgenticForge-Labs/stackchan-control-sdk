@@ -116,3 +116,23 @@ def test_open_sets_finite_write_timeout_and_does_not_wait_for_flush(monkeypatch)
         assert settings == {"timeout": 0.1, "write_timeout": 0.25}
     finally:
         client.close()
+
+
+def test_partial_serial_write_never_triggers_automatic_retry_or_reconnect():
+    wire = Wire()
+    transmitted = []
+
+    def partial_write(data):
+        transmitted.append(data)
+        return len(data) - 1
+
+    wire.write = partial_write
+    client = RoutedSerialClient(wire)
+    try:
+        with pytest.raises(UnknownOutcome, match="outcome unknown"):
+            client.submit("motion.update", {"yawServo": {"angle": 50, "speed": 20}})
+        with pytest.raises(RoutedSerialError, match="unavailable"):
+            client.submit("motion.update", {"yawServo": {"angle": 50, "speed": 20}})
+        assert len(transmitted) == 1
+    finally:
+        client.close()

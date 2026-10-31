@@ -3,7 +3,13 @@
 from .assets import AssetStep, NativeAsset, list_assets, load_asset
 from .capabilities import SCHEMA_VERSION, capability_schema
 from .client import StackChan
-from .external_control import BuiltinLights, ExternalControl, FirmwareRejected, NativeCapability
+from .external_control import (
+    BuiltinLights,
+    ExecutionState,
+    ExternalControl,
+    FirmwareRejected,
+    NativeCapability,
+)
 from .lighting import LightingCleanupError, LightingInterrupted, LightingResult, sustain_neohex
 from .models import AvatarUpdate, FeatureUpdate, Keyframe, MotionUpdate, ServoUpdate
 from .neohex import NeoHexFrame
@@ -19,6 +25,7 @@ __all__ = [
     "DataType",
     "FeatureUpdate",
     "ExternalControl",
+    "ExecutionState",
     "FirmwareRejected",
     "Keyframe",
     "LightingCleanupError",

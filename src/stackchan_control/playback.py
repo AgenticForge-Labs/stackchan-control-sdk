@@ -26,7 +26,11 @@ class StepResult:
 
 
 def play_asset(
-    robot: ExternalControl, asset: NativeAsset, *, expected_revision: str
+    robot: ExternalControl,
+    asset: NativeAsset,
+    *,
+    expected_revision: str,
+    expected_generation: int | None = None,
 ) -> tuple[StepResult, ...]:
     """Run steps in order, delaying late steps; reject stale identities before submission.
 
@@ -38,6 +42,11 @@ def play_asset(
     if asset.revision != expected_revision:
         raise ValueError("asset revision does not match expected revision")
     generation, stopped = robot._generation()
+    if expected_generation is not None:
+        if type(expected_generation) is not int or expected_generation < 0:
+            raise ValueError("expected_generation must be a nonnegative integer")
+        if expected_generation != generation:
+            raise PlaybackInterrupted("playback preflight invalidated by stop")
     start = time.monotonic()
     results: list[StepResult] = []
     for index, step in enumerate(asset.steps):
@@ -45,11 +54,11 @@ def play_asset(
             raise PlaybackInterrupted("stop requested during playback; check stop outcome")
         started = time.monotonic() - start
         if step.operation == "head" and isinstance(step.update, MotionUpdate):
-            events = robot.move_head(step.update, _generation=generation)
+            events = robot.move_head(step.update, expected_generation=generation)
         elif step.operation == "face" and isinstance(step.update, AvatarUpdate):
-            events = robot.update_face(step.update, _generation=generation)
+            events = robot.update_face(step.update, expected_generation=generation)
         elif step.operation == "lights" and isinstance(step.update, BuiltinLights):
-            events = robot.update_lights(step.update, _generation=generation)
+            events = robot.update_lights(step.update, expected_generation=generation)
         else:
             raise ValueError("asset step operation and update do not match")
         if stopped.is_set():
