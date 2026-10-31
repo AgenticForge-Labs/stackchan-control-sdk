@@ -73,6 +73,13 @@ CAPABILITIES = MappingProxyType(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class ExecutionState:
+    """Host STOP generation snapshot, not measured physical safety evidence."""
+
+    generation: int
+
+
 class FirmwareRejected(RoutedSerialError):
     def __init__(self, command_id: str, event: ExternalEvent) -> None:
         self.command_id = command_id
@@ -134,6 +141,27 @@ class ExternalControl:
         self._stop_event = threading.Event()
         self._neohex_lock = threading.Lock()
 
+    def execution_state(self) -> ExecutionState:
+        """Return a public STOP-generation token for later validated dispatch.
+
+        Refuses while a STOP is pending or its outcome unconfirmed. A returned
+        token is not a hardware lease, motion grant or proof of physical safety.
+        """
+        return ExecutionState(self._generation()[0])
+
+    @staticmethod
+    def _select_generation(
+        expected_generation: int | None, legacy_generation: int | None
+    ) -> int | None:
+        # _generation is the legacy internal keyword used by existing SDK
+        # playback and Puppet adapters. Only one token may be supplied.
+        if expected_generation is not None and legacy_generation is not None:
+            raise ValueError("specify only expected_generation")
+        selected = expected_generation if expected_generation is not None else legacy_generation
+        if selected is not None and (type(selected) is not int or selected < 0):
+            raise ValueError("expected_generation must be a nonnegative integer")
+        return selected
+
     def _generation(self) -> tuple[int, threading.Event]:
         with self._motion_lock:
             if self._stop_in_progress or self._stop_failed:
@@ -188,7 +216,11 @@ class ExternalControl:
         return result
 
     def update_face(
-        self, update: AvatarUpdate, *, _generation: int | None = None
+        self,
+        update: AvatarUpdate,
+        *,
+        expected_generation: int | None = None,
+        _generation: int | None = None,
     ) -> tuple[ExternalEvent, ...]:
         payload = update.to_dict()
         if not payload or any(not feature for feature in payload.values()):
@@ -196,23 +228,33 @@ class ExternalControl:
         for feature in payload.values():
             if any(type(value) is not int for value in feature.values()):
                 raise ValueError("face feature values must be integers")
-        generation = self._generation()[0] if _generation is None else _generation
+        selected = self._select_generation(expected_generation, _generation)
+        generation = self._generation()[0] if selected is None else selected
         self._require("avatar.update")
         return self._guarded_request("avatar.update", payload, generation)
 
     def update_lights(
-        self, update: BuiltinLights, *, _generation: int | None = None
+        self,
+        update: BuiltinLights,
+        *,
+        expected_generation: int | None = None,
+        _generation: int | None = None,
     ) -> tuple[ExternalEvent, ...]:
         payload = update.to_dict()
-        generation = self._generation()[0] if _generation is None else _generation
+        selected = self._select_generation(expected_generation, _generation)
+        generation = self._generation()[0] if selected is None else selected
         self._require("lights.update")
         return self._guarded_request("lights.update", payload, generation)
 
-    def update_neohex(self, frame: NeoHexFrame) -> tuple[ExternalEvent, ...]:
+    def update_neohex(
+        self, frame: NeoHexFrame, *, expected_generation: int | None = None
+    ) -> tuple[ExternalEvent, ...]:
+        selected = self._select_generation(expected_generation, None)
         if not self._neohex_lock.acquire(blocking=False):
             raise RoutedSerialError("NeoHEX is busy")
         try:
-            return self._update_neohex(frame, self._generation()[0])
+            generation = self._generation()[0] if selected is None else selected
+            return self._update_neohex(frame, generation)
         finally:
             self._neohex_lock.release()
 
@@ -222,7 +264,11 @@ class ExternalControl:
         return self._guarded_request("external_lights.update", frame.to_dict(), generation)
 
     def move_head(
-        self, update: MotionUpdate, *, _generation: int | None = None
+        self,
+        update: MotionUpdate,
+        *,
+        expected_generation: int | None = None,
+        _generation: int | None = None,
     ) -> tuple[ExternalEvent, ...]:
         payload = update.to_dict()
         if not payload:
@@ -239,10 +285,11 @@ class ExternalControl:
             low, high = (-1280, 1280) if name == "yawServo" else (30, 870)
             if not low <= servo.angle <= high or not 0 <= servo.speed <= 1000:
                 raise ValueError(f"{name} exceeds protocol limits")
+        selected = self._select_generation(expected_generation, _generation)
         with self._motion_lock:
             if self._stop_in_progress or self._stop_failed:
                 raise RoutedSerialError("stop is pending or unconfirmed; motion is inhibited")
-            if _generation is not None and _generation != self._stop_generation:
+            if selected is not None and selected != self._stop_generation:
                 raise RoutedSerialError("action invalidated by stop")
             if self._preparing_motion:
                 raise RoutedSerialError("another motion is being prepared")
