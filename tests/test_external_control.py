@@ -294,3 +294,35 @@ def test_unconfirmed_stop_inhibits_snapshot_and_neohex(setup):
             NeoHexFrame.solid("#000000"), expected_generation=token.generation
         )
     assert not any(c["method"] == "external_lights.update" for c in firmware.commands)
+
+
+def test_valid_generation_preserves_manual_and_legacy_clients(setup):
+    from stackchan_control import ExecutionState as PublicExecutionState
+
+    firmware, robot = setup
+    token = robot.execution_state()
+    assert isinstance(token, PublicExecutionState)
+    robot.update_face(
+        AvatarUpdate(mouth=FeatureUpdate(size=4)),
+        expected_generation=token.generation,
+    )
+    robot.update_lights(
+        BuiltinLights(left_color="#123456"),
+        expected_generation=token.generation,
+    )
+    robot.update_neohex(
+        NeoHexFrame.solid("#001100", 3),
+        expected_generation=token.generation,
+    )
+    # Existing Puppeteer PR #7 still uses the SDK's private keyword.
+    # Keep that implementation operational until its adapter migration.
+    robot.update_face(
+        AvatarUpdate(mouth=FeatureUpdate(size=5)),
+        _generation=token.generation,
+    )
+    assert [
+        c["method"] for c in firmware.commands
+        if c["method"] in {"avatar.update", "lights.update", "external_lights.update"}
+    ] == [
+        "avatar.update", "lights.update", "external_lights.update", "avatar.update",
+    ]
