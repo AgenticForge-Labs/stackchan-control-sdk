@@ -41,6 +41,26 @@ The implemented first endpoint uses ESP32-S3 USB Serial/JTAG with prefixed newli
 
 The local protocol deliberately exposes a smaller surface than the upstream internal APIs. Protocol v1 allows bounded position motion but rejects continuous rotation and custom spring parameters. Animation playback remains gated until every keyframe field can be populated safely from observed retail state.
 
+## Public execution-state / cross-client contract
+
+`ExternalControl.execution_state()` exposes an immutable,
+host-local STOP generation for a workflow to bind to its
+subsequent command. `expected_generation` is optional on
+native head, face, built-in RGB, NeoHEX and pinned asset playback.
+The facade checks it again under the existing STOP/serial
+submission lock; a stale token never reaches the firmware.
+This makes the same SDK primitives usable from CLI/Python and
+Forge Puppeteer's optional MCP adapter without installing MCP
+in this repository. Existing private `_generation` parameters
+remain temporarily as compatibility aliases until the
+open Puppeteer StackChan integration can use the public API.
+
+This is a **host ordering fence**, not a separate execution
+authority, device identity, lease or physical safety guarantee.
+A STOP after submission relies on firmware behavior, and lost
+serial outcomes must not be automatically retried. Details and
+tests: [Execution state](execution-state.md).
+
 ## Safety ownership
 
 Host-side checks improve usability but are not the safety boundary. Firmware validates native angle and speed ranges, rejects concurrent motion commands, and prevents dangerous motion modes from entering the upstream parser. Rate limits, a host-loss watchdog, reconnect behavior, and hardware-observed settling rules remain firmware work after the first physical test.

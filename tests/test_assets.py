@@ -41,13 +41,30 @@ def test_descriptor_and_content_are_bound_to_revision(tmp_path):
     assert descriptor["id"] == "stackchan/demo"
     assert descriptor["resources"] == ["face.mouth"]
     assert descriptor["revision"] == asset.revision
-    assert descriptor["duration_s"] is None
+    assert descriptor["duration_s"] == 0
     assert descriptor["device_compatibility"]["status"] == "unchecked"
     altered = replace(
         asset, steps=(replace(asset.steps[0], update=AvatarUpdate(mouth=FeatureUpdate(size=4))),)
     )
     with pytest.raises(ValueError, match="does not match"):
         validate_asset(altered)
+
+
+def test_sequence_duration_is_authored_schedule_span_not_device_runtime(tmp_path):
+    asset = load_asset(
+        write(
+            tmp_path / "sequence.json",
+            document(
+                kind="sequence",
+                steps=[
+                    {"at_s": 0, "operation": "face", "parameters": {"mouth": {"size": 3}}},
+                    {"at_s": 2.5, "operation": "face", "parameters": {"mouth": {"size": 4}}},
+                ],
+            ),
+        )
+    )
+
+    assert asset.descriptor()["duration_s"] == 2.5
 
 
 def test_invalid_and_duplicate_assets_fail_closed(tmp_path):

@@ -116,6 +116,20 @@ A 12-second follow-up with radial brightness decay is retained as
 acknowledged, and the operator confirmed the bright-center/fading-edge version
 looked better.
 
+## STOP-generation coordination
+
+The `ExternalControl.update_neohex(frame, expected_generation=...)`
+call now accepts the same immutable
+`execution_state().generation` token used for head/face/light
+and replay commands. An intervening STOP invalidates the
+frame before the serial command is submitted. The existing
+`sustain_neohex()` routine already carries one private
+generation through every refresh and cleanup attempt; it
+is unchanged here. The firmware's external LED timeout
+remains separate from servo-motion safety.
+
+See [the public execution-state contract](execution-state.md).
+
 ## Sustained SDK output
 
 `sustain_neohex(robot, frame, duration_s=...)` refreshes a static frame using

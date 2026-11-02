@@ -142,13 +142,19 @@ The SDK already has TrajectoryLibrary, MotionSequence/SequenceRunner and
 Use those implementations for recorded gestures, retaining hardware/calibration
 provenance, entry-to-start validation, timing and cancellation checks.
 
-The documented constrained MCP surface currently exposes saved poses, jogs,
-gripper, sleep and stop, but not arbitrary recording/sequence replay. Plan an
-explicit allowlisted broker replay capability if agent-facing replay is needed;
-the Puppeteer MCP server must not bypass this restriction with the human CLI.
+The constrained MCP surface now includes explicitly allowlisted recording and
+sequence replay in SDK simulation mode. Forge calls these through the existing
+broker MCP path; the launcher requires explicit `simulation_only`, and the
+broker profile, exact catalog revision policy, live simulation-session check,
+watchdog heartbeat, calibration/start-state validation and STOP fencing remain
+authoritative. No human CLI or second controller is used for replay. Physical
+replay remains unavailable through this Forge path.
 Preserve broker permission/profile/lease checks. An arm gesture is an optional
 embodiment of an expressive intent; face and speech-motion capabilities may be
-unsupported. Do not add automatic idle arm motion by analogy with Reachy.
+unsupported. Optional, explicitly configured idle arm motion can embody a
+breathing-like movement, subject to the broker's authority, limits, stop and
+execution controls. Do not assume Reachy's motion or control strategy transfers
+directly to the arm.
 
 ## Work order
 
@@ -205,7 +211,12 @@ state, action status, cancellation and catalog operations, plus typed native
 tools for each embodiment. Keep the MCP transport independent from execution
 logic. Prefer explicit schemas over an arbitrary motor-name/value command.
 The SO-ARM adapter continues to call its existing broker and advertise only
-granted operations; planned replay is not an existing agent capability.
+granted operations. Simulation-only recording and sequence replay are now
+available through pinned asset IDs/revisions; see the Forge integration evidence
+in `../forge-puppeteer/docs/ROBOT_MCP_IMPLEMENTATION_PLAN.md`. The installed
+wheel smoke proves MCPClient → packaged Forge launcher → SDK MCP → authenticated
+SDK simulation broker, including stale-pin denial before dispatch and confirmed
+simulation STOP. Physical execution is not part of that evidence.
 
 Puppeteer supplies optional expressive recipes, procedural idle/talking behavior,
 voice timing, cross-device coordination and semantic aliases. An optional
