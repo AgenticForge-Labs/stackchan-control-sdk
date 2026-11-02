@@ -229,7 +229,8 @@ invalid, out-of-order, oversized, duplicate, and unsupported assets and returns 
 SHA-256 revision of the original file. These are example data, not a firmware
 emotion library or evidence of hardware suitability.
 Catalog descriptors use `stackchan/`-prefixed IDs, report resources derived
-from the steps, and mark device compatibility as unchecked. Duration is unknown:
+from the steps, and mark device compatibility as unchecked. `duration_s` reports
+the authored schedule span (the final step's `at_s`), not measured device runtime:
 the last requested start time is not evidence that movement has completed.
 Playback checks that the in-memory asset still matches its original file snapshot
 and revision; reloading changed file contents produces a different revision.

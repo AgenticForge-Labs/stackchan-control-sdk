@@ -57,7 +57,9 @@ class NativeAsset:
             "source": "operator-configured-local-pack",
             "revision": self.revision,
             "description": self.description,
-            "duration_s": None,
+            # This is the authored schedule span, not measured device runtime.
+            # Command completion can take longer and is reported by playback.
+            "duration_s": self.steps[-1].at_s,
             "resources": sorted(resources),
             "parameters_schema": {
                 "type": "object",
