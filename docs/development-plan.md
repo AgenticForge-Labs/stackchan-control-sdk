@@ -151,7 +151,10 @@ authoritative. No human CLI or second controller is used for replay. Physical
 replay remains unavailable through this Forge path.
 Preserve broker permission/profile/lease checks. An arm gesture is an optional
 embodiment of an expressive intent; face and speech-motion capabilities may be
-unsupported. Do not add automatic idle arm motion by analogy with Reachy.
+unsupported. Optional, explicitly configured idle arm motion can embody a
+breathing-like movement, subject to the broker's authority, limits, stop and
+execution controls. Do not assume Reachy's motion or control strategy transfers
+directly to the arm.
 
 ## Work order
 
