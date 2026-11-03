@@ -49,6 +49,10 @@ def _servo(low: int, high: int) -> dict[str, Any]:
 _COLOR = {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
 _DURATION = {"type": "number", "minimum": 0, "maximum": 10}
 _SCHEMAS: dict[str, dict[str, Any]] = {
+    "display.face_scale": {
+        **_object({"percent": {"type": "integer", "enum": [100, 170]}}),
+        "required": ["percent"],
+    },
     "avatar.update": _object(
         {"leftEye": _feature(), "rightEye": _feature(), "mouth": _feature()}, minimum=1
     ),
