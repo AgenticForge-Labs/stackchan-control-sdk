@@ -257,3 +257,17 @@ were confirmed by the operator. Firmware rejected malformed/count/brightness
 requests before initializing the peripheral. See [NeoHEX findings](neohex.md)
 for limits and evidence paths. The new firmware retained the filming layout and
 redraw change; no servo commands were sent during NeoHEX validation.
+
+
+## Optional face scale qualification (0.4.0 candidate)
+
+This software change makes the previously hard-coded 170% EXT CONTROL face
+scale opt-in. Before performing the attended test, confirm the exact new
+firmware artifact/commit and recoverability; do not flash a live device during
+automated CI. With an operator-authorized, installed version and the correct
+EXT CONTROL app running, read `state`, select 170% by the native CLI,
+visually verify center/eye/mouth proportions, return to 100%, and verify the
+reported `display.face_scale_percent` matches each visual state. Confirm
+face updates and home/status indicators remain usable. Retain both measured
+visual observations and the firmware source/image digests. No servo motion is
+required for this test.
