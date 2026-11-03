@@ -19,7 +19,7 @@
 namespace agenticforge {
 namespace {
 constexpr const char* kPrefix = "@AF ";
-constexpr const char* kExtensionVersion = "0.3.0";
+constexpr const char* kExtensionVersion = "0.4.0";
 constexpr int kYawMinTenths = -1280;
 constexpr int kYawMaxTenths = 1280;
 constexpr int kPitchMinTenths = 30;
@@ -383,6 +383,7 @@ void ExternalControlService::handle_line(const std::string& line)
         result["native_angle_unit"] = "tenths_of_a_degree";
         auto capabilities = result["capabilities"].to<ArduinoJson::JsonArray>();
         capabilities.add("avatar.update");
+        capabilities.add("display.face_scale");
         capabilities.add("motion.update.position_only");
         capabilities.add("lights.update");
         capabilities.add("external_lights.update");
@@ -431,6 +432,8 @@ void ExternalControlService::handle_line(const std::string& line)
         result["yaw_moving"] = motion.yawServo().isMoving();
         result["pitch_moving"] = motion.pitchServo().isMoving();
         result["animation_active"] = false;
+        auto display = result["display"].to<ArduinoJson::JsonObject>();
+        display["face_scale_percent"] = _face_scale_percent;
         auto external = result["external_lights"].to<ArduinoJson::JsonObject>();
         external["initialized"] = _neohex.initialized();
         external["commanded_lit"] = _neohex.lit();
@@ -472,6 +475,35 @@ void ExternalControlService::handle_line(const std::string& line)
             send_event(id, "failed", "external lights did not clear");
             return;
         }
+        send_event(id, "completed");
+        return;
+    }
+
+    if (method == "display.face_scale") {
+        // Appearance only. Strict discrete choices avoid arbitrary LVGL scale
+        // values and preserve native avatar geometry and servo safety rules.
+        if (!_face_panel || !params.is<ArduinoJson::JsonObjectConst>()) {
+            send_event(id, "failed", "face scale panel or parameters unavailable");
+            return;
+        }
+        auto options = params.as<ArduinoJson::JsonObjectConst>();
+        auto percent_value = options["percent"];
+        if (options.size() != 1 || !percent_value.is<int>()) {
+            send_event(id, "failed", "face scale requires integer percent 100 or 170");
+            return;
+        }
+        const int percent = percent_value.as<int>();
+        if (percent != 100 && percent != 170) {
+            send_event(id, "failed", "face scale supports only 100 or 170 percent");
+            return;
+        }
+        send_event(id, "accepted");
+        // Exact 435 corresponds to the already tested ~1.7x filming face.
+        const int lv_scale = percent == 170 ? 435 : 256;
+        lv_obj_set_style_transform_scale_x(_face_panel, lv_scale, 0);
+        lv_obj_set_style_transform_scale_y(_face_panel, lv_scale, 0);
+        lv_obj_invalidate(lv_screen_active());
+        _face_scale_percent = percent;
         send_event(id, "completed");
         return;
     }
