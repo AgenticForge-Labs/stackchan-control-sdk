@@ -71,6 +71,16 @@ flashing, extract and run `sha256sum -c SHA256SUMS`; abort if any hash fails. Se
 for reproducibility limitations and release prerequisites. Packaging does not
 flash the device or alter NVS.
 
+## If EXT CONTROL is missing from the launcher
+
+Read [the mode/OTA/firmware recovery guide](../docs/disappearing-app-recovery.md)
+before flashing. In pinned upstream firmware, AI Agent may bypass the
+launcher entirely, while the official product documentation also describes
+automatic factory OTA when AI Agent is entered. The original ESP-NOW Remote
+Control is a distinct launcher entry from the AgenticForge USB EXT CONTROL.
+Check the current mode and USB hello first; neither a missing icon nor a
+failed handshake alone proves that firmware was overwritten.
+
 ## Flash and restore
 
 Do not flash until the retail device is available and its existing firmware version and settings have been recorded. The first physical session should identify which StackChan/CoreS3 USB connector exposes the ESP32-S3 USB Serial/JTAG port.
