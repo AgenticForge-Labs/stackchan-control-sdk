@@ -124,6 +124,18 @@ ruff check .
 mypy
 ```
 
+## Missing EXT CONTROL or Remote Control?
+
+A missing launcher icon is **not automatically a missing firmware image**.
+On pinned M5Stack firmware, AI Agent can bypass/unload the normal launcher,
+and M5Stack documents that entering AI Agent may also install factory OTA
+firmware, which can replace our EXT CONTROL overlay. Use the
+[nonmoving recovery decision tree](docs/disappearing-app-recovery.md)
+to distinguish ordinary launcher mode, installed image identity, a USB
+port/handshake problem, and a genuine firmware replacement before considering
+any flash. Our current 0.4.0 bundle is for **attended manual installation**,
+not an automatic firmware update or restoration of factory settings.
+
 ## Firmware installation bundles
 
 A clean source build always begins with a pinned M5Stack checkout and our tracked overlay:

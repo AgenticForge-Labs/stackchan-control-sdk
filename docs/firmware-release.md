@@ -10,6 +10,17 @@ This is a **clean source rebuild**, not a factory 1.4.4 image restore. Running `
 
 This is **not yet a fully bit-reproducible build**: upstream `repos.json` includes movable tags, the resolved ESP-IDF `dependencies.lock` is not committed, compilation timestamps may vary, and CI uses a Docker tag rather than an immutable image digest. Do not claim independent builds have matching hashes until these are fixed and verified.
 
+## Avoid accidental replacement
+
+Official M5Stack StackChan documentation says entering AI Agent may
+automatically install a factory firmware update. That can replace our custom
+EXT CONTROL overlay, while AI-Agent-on-boot can also bypass the ordinary app
+launcher without any flash. See
+[non-moving recovery](disappearing-app-recovery.md) for the correct diagnosis
+and backup/restore decision. This repository does **not** disable vendor OTA,
+install firmware silently, or change NVS boot settings. Any compatible future
+update policy must be explicit and owner reviewed.
+
 ## Clean build from source
 
 From the root of an authorized clone, with the ESP-IDF 5.5.4 environment activated:
