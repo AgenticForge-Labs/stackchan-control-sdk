@@ -130,7 +130,7 @@ A clean source build always begins with a pinned M5Stack checkout and our tracke
 
 ```bash
 python3 tools/prepare_firmware.py --refresh --build
-python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.4.0.zip
 ```
 
 The resulting ZIP contains the actual ESP-IDF flash images and offsets, checksum manifest,
