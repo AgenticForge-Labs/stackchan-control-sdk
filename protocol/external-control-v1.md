@@ -111,3 +111,21 @@ Capabilities report the fixed pin, count, brightness ceiling, and 1500 ms timeou
 State reports commanded illumination and driver errors, not physical detection.
 The running service clears external LEDs if frames stop for 1500 ms, on
 `system.stop`, and on app exit. See [NeoHEX details](../docs/neohex.md).
+
+
+## Optional face panel scale (EXT CONTROL extension 0.4.0)
+
+New firmware advertises `display.face_scale` in `system.capabilities`.
+`@AF {"id":"scale-1","method":"display.face_scale","params":{"percent":170}}`
+changes the entire native face panel to 170% scale around its existing center.
+The only other valid value is 100, returning to the stock 256/256 LVGL scale.
+Bad types, additional fields, unsupported percentages and missing panel
+are rejected before completion. This is display-only; no motor command or
+native avatar feature parameters are modified.
+
+`system.state.display.face_scale_percent` records the selected percent.
+The setting starts at 100 on each EXT CONTROL app launch and does not persist
+or modify normal StackChan applications. The existing firmware 0.3.0 advertises
+no such capability. The Python SDK must not send it without live discovery.
+Physical visual inspection and actual firmware build are required before
+claiming support on a connected robot.

@@ -130,7 +130,7 @@ A clean source build always begins with a pinned M5Stack checkout and our tracke
 
 ```bash
 python3 tools/prepare_firmware.py --refresh --build
-python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.4.0.zip
 ```
 
 The resulting ZIP contains the actual ESP-IDF flash images and offsets, checksum manifest,
@@ -251,3 +251,33 @@ firmware animation is still gated and is never used for these assets.
 For sustained NeoHEX output, `sustain_neohex` and the `neohex --duration`
 option refresh against the firmware-advertised watchdog and explicitly clear the
 frame. See [NeoHEX details](docs/neohex.md) for cancellation and failure semantics.
+
+
+## Optional native face scale (0.4.0 candidate)
+
+The EXT CONTROL firmware previously enlarged the entire face about **1.7×**
+by default for filming. This is now an **explicit display option**, separate
+from all eye/mouth expressive feature controls and from servo geometry.
+New firmware starts with the normal **100%** stock face. A trusted connected
+operator can select **170%** (same LVGL scale 435 used previously) or return
+to **100%** (LVGL scale 256):
+
+```bash
+stackchan --port OPERATOR_SELECTED_PORT face-scale --percent 170
+stackchan --port OPERATOR_SELECTED_PORT state
+stackchan --port OPERATOR_SELECTED_PORT face-scale --percent 100
+```
+
+The Python equivalent is `robot.set_face_scale(170,
+expected_generation=token.generation)` on the existing `ExternalControl`
+facade. Discovery must advertise `display.face_scale`; old 0.3.0 firmware
+does not implement it and no unrequested firmware update, reconnect, or
+retry occurs. `system.state.display.face_scale_percent` reports the selected
+presentation setting. It affects neither the native feature geometry nor
+`face.update`/head motion limits. Scale resets to normal when the EXT
+CONTROL app is relaunched. Native animation remains gated.
+
+**Status:** source implementation and CI support only until a reproducible
+ESP-IDF image builds and the user visually accepts both modes on StackChan.
+Do not flash automatically, infer safety qualification, or describe this as
+an available capability on the already flashed 0.3.0 unit.

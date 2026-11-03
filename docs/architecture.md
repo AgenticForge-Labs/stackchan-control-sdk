@@ -99,3 +99,16 @@ is not completion evidence, and only a terminal firmware event supplies that
 outcome. A failed or partial write leaves the outcome unknown and makes the
 connection unavailable. These bounds are transport safeguards, not a guaranteed
 stop latency or physical stop qualification.
+
+
+## Optional display-only face enlargement
+
+The complete stock Avatar panel can render at 100% or 170%. The owning EXT
+CONTROL firmware exposes an additive `display.face_scale` operation only on
+new compatible builds. The Python SDK validates the discrete percentages and
+checks the *live* firmware capability before submission. This is a visual
+presentation choice, never an emotion, avatar feature, movement calibration,
+or user-supplied arbitrary LVGL transform. Puppeteer may select it from an
+operator-owned profile, but the SDK/firmware remain the only control authority.
+Older firmware stays supported without this optional feature. New firmware
+initializes to 100%; 170% preserves the previous filming transform exactly.

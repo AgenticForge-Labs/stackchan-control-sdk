@@ -4,7 +4,7 @@
 
 - M5Stack StackChan checkout: exact Git commit in `firmware/upstream.lock.json` (upstream firmware version 1.4.3).
 - ESP-IDF build toolchain version: 5.5.4.
-- AgenticForge changes: versioned in this repository under `firmware/overlay/`; the Python SDK is version 0.3.0.
+- AgenticForge changes: versioned in this repository under `firmware/overlay/`; the proposed Python SDK is version 0.4.0 (not yet installed on hardware).
 
 This is a **clean source rebuild**, not a factory 1.4.4 image restore. Running `--refresh` removes the previous worktree and recreates the upstream checkout before applying the overlay. The preparation step does **not** erase or modify a physical device.
 
@@ -26,7 +26,7 @@ After a successful build, from the SDK repository root:
 
 ```bash
 python3 tools/package_firmware.py \
-  --output dist/stackchan-external-control-0.3.0.zip
+  --output dist/stackchan-external-control-0.4.0.zip
 ```
 
 The bundle contains:

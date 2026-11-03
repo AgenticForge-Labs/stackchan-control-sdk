@@ -6,6 +6,7 @@
 #pragma once
 
 #include "neohex37.h"
+#include <lvgl.h>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -14,6 +15,7 @@ namespace agenticforge {
 
 class ExternalControlService {
 public:
+    explicit ExternalControlService(lv_obj_t* face_panel) : _face_panel(face_panel) {}
     bool start();
     void poll();
     void stop();
@@ -23,6 +25,8 @@ private:
     static constexpr size_t kMaxLineBytes = 16 * 1024;
 
     NeoHex37 _neohex;
+    lv_obj_t* _face_panel = nullptr;
+    int _face_scale_percent = 100;
     bool _available = false;
     bool _owns_driver = false;
     bool _discard_until_newline = false;

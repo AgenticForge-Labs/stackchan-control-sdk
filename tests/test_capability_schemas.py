@@ -12,6 +12,7 @@ from stackchan_control.external_control import CAPABILITIES
 @pytest.mark.parametrize(
     ("ident", "valid", "invalid"),
     [
+        ("display.face_scale", {"percent": 170}, {"percent": 169}),
         ("avatar.update", {"mouth": {"size": 3}}, {"mouth": {"x": 3}}),
         ("avatar.update", {"leftEye": {"x": 3, "y": 4}}, {"yawServo": {"angle": 0}}),
         (

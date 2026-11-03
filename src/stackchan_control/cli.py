@@ -30,6 +30,8 @@ def parser() -> argparse.ArgumentParser:
     play.add_argument("--pack", required=True)
     play.add_argument("--id", required=True)
     play.add_argument("--revision", required=True)
+    display = commands.add_parser("face-scale", help="select 100% or 170% display face")
+    display.add_argument("--percent", type=int, choices=(100, 170), required=True)
     head = commands.add_parser("head")
     head.add_argument("--yaw", type=int, help="target in tenths of a degree")
     head.add_argument("--pitch", type=int, help="target in tenths of a degree")
@@ -95,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
                 else None,
             )
             result = [asdict(e) for e in robot.move_head(update)]
+        elif args.command == "face-scale":
+            result = [asdict(e) for e in robot.set_face_scale(args.percent)]
         elif args.command == "face":
             feature = FeatureUpdate(
                 x=args.x, y=args.y, rotation=args.rotation, weight=args.weight, size=args.size

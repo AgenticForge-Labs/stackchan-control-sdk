@@ -62,7 +62,7 @@ After a successful clean source build, package the ESP-IDF flash inputs from the
 SDK repository root:
 
 ```bash
-python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.4.0.zip
 ```
 
 The ZIP is for manual installation and includes `FLASHING.md`, `SHA256SUMS`,
@@ -111,9 +111,12 @@ See `docs/hardware-capability-test.md` for the exact plug-in test sequence.
 
 ## Filming layout
 
-EXT CONTROL enlarges the stock avatar uniformly by approximately 1.7× about the
-screen center. Native feature parameters continue to use their existing units.
-Face updates invalidate the full screen to prevent stale pixels around shrinking
-features on the scaled panel. A talking/surprised replay initially exposed mouth
-streaks; the operator confirmed a clean replay after this redraw change. See the
-hardware capability document for the tested revision and retained local evidence.
+The older 0.3.0 EXT CONTROL firmware enlarged the stock avatar uniformly by
+approximately 1.7× about the center. The proposed 0.4.0 firmware now starts
+at the normal 100% scale and offers an explicit `display.face_scale` control
+for 100% or 170%. It retains the same approximate 1.7× LVGL transform when
+requested; native feature parameters and servo units are unchanged.
+Face updates still invalidate the full screen to prevent stale pixels around
+shrinking features. The operator previously confirmed clean replay after this
+redraw change on the older enlarged display; the new selectable 0.4.0 modes
+still require their own attended visual acceptance.

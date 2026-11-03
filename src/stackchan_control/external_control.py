@@ -44,6 +44,10 @@ CAPABILITIES = MappingProxyType(
                 "avatar.update", "avatar.update", "visual", ("face",), "Eye/mouth features"
             ),
             NativeCapability(
+                "display.face_scale", "display.face_scale", "visual",
+                ("face.display",), "Set entire displayed avatar to 100% or 170%",
+            ),
+            NativeCapability(
                 "motion.update.position_only",
                 "motion.update",
                 "motion",
@@ -214,6 +218,22 @@ class ExternalControl:
         if not isinstance(result, dict):
             raise RoutedSerialError("invalid firmware state response")
         return result
+
+    def set_face_scale(
+        self, percent: int, *, expected_generation: int | None = None
+    ) -> tuple[ExternalEvent, ...]:
+        """Change only the screen presentation scale, never servo geometry.
+
+        The EXT CONTROL firmware must explicitly advertise this optional
+        capability. Existing 0.3.0 firmware is not silently assumed compatible.
+        Generation fencing prevents a change from racing a STOP.
+        """
+        if type(percent) is not int or percent not in (100, 170):
+            raise ValueError("face scale percent must be exactly 100 or 170")
+        selected = self._select_generation(expected_generation, None)
+        generation = self._generation()[0] if selected is None else selected
+        self._require("display.face_scale")
+        return self._guarded_request("display.face_scale", {"percent": percent}, generation)
 
     def update_face(
         self,
