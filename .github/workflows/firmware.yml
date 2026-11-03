@@ -40,6 +40,8 @@ jobs:
         with:
           name: firmware-build-log
           path: .firmware-worktree/StackChan/firmware/firmware-build.log
+      - name: Trust the exact checked-out Git working directory for provenance
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Package manual-install firmware bundle
         run: |
           python3 tools/package_firmware.py --output "$GITHUB_WORKSPACE/stackchan-external-control.zip"
