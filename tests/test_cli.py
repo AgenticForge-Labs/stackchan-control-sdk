@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from stackchan_control.cli import main
 from stackchan_control.external_protocol import ExternalEvent
 
@@ -32,6 +34,15 @@ def test_cli_face_uses_typed_external_control(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["ok"]
     assert client.requests[-1] == ("avatar.update", {"mouth": {"size": 10}})
     assert client.closed
+
+
+def test_cli_face_scale_rejects_unapproved_ratio_before_usb(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "stackchan_control.cli.RoutedSerialClient.open",
+        lambda port: (_ for _ in ()).throw(AssertionError("must not open USB")),
+    )
+    with pytest.raises(SystemExit):
+        main(["--port", "fake", "face-scale", "--percent", "169"])
 
 
 def test_cli_assets_reports_schedule_span_without_opening_usb(tmp_path, monkeypatch, capsys):
@@ -91,6 +102,7 @@ def test_cli_live_commands_use_facade_and_structured_results(monkeypatch, capsys
     for arguments, expected in (
         (["discover"], "system.capabilities"),
         (["state"], "system.state"),
+        (["face-scale", "--percent", "170"], "display.face_scale"),
         (["head", "--yaw", "10", "--speed", "20"], "motion.update"),
         (["lights", "--left-color", "#ff0000"], "lights.update"),
         (["neohex", "--color", "#ff0000"], "external_lights.update"),
