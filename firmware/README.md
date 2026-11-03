@@ -62,7 +62,7 @@ After a successful clean source build, package the ESP-IDF flash inputs from the
 SDK repository root:
 
 ```bash
-python3 tools/package_firmware.py --output dist/stackchan-external-control-0.3.0.zip
+python3 tools/package_firmware.py --output dist/stackchan-external-control-0.4.0.zip
 ```
 
 The ZIP is for manual installation and includes `FLASHING.md`, `SHA256SUMS`,
