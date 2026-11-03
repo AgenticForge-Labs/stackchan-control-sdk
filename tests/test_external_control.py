@@ -18,6 +18,7 @@ class Firmware:
         self.reject = None
         self.capabilities = [
             "avatar.update",
+            "display.face_scale",
             "motion.update.position_only",
             "lights.update",
             "external_lights.update",
@@ -105,6 +106,33 @@ def setup():
     client = RoutedSerialClient(firmware)
     yield firmware, ExternalControl(client, timeout=0.5)
     client.close()
+
+
+def test_face_scale_is_optional_typed_and_does_not_send_motion(setup):
+    firmware, robot = setup
+    robot.set_face_scale(170)
+    assert firmware.commands[-1]["method"] == "display.face_scale"
+    assert firmware.commands[-1]["params"] == {"percent": 170}
+    robot.set_face_scale(100)
+    assert firmware.commands[-1]["params"] == {"percent": 100}
+    for invalid in (True, 0, 169, 200, 1.7, "170"):
+        with pytest.raises(ValueError, match="100 or 170"):
+            robot.set_face_scale(invalid)
+    assert not any(c["method"] == "motion.update" for c in firmware.commands)
+
+    token = robot.execution_state()
+    robot.stop()
+    with pytest.raises(RoutedSerialError, match="invalidated by stop"):
+        robot.set_face_scale(170, expected_generation=token.generation)
+
+
+def test_old_firmware_without_scale_capability_is_preserved(setup):
+    firmware, robot = setup
+    firmware.capabilities.remove("display.face_scale")
+    before = len(firmware.commands)
+    with pytest.raises(RoutedSerialError, match="does not advertise"):
+        robot.set_face_scale(170)
+    assert [c["method"] for c in firmware.commands[before:]] == ["system.capabilities"]
 
 
 def test_face_is_typed_and_cannot_include_motion(setup):
