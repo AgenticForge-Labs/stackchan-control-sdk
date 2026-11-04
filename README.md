@@ -1,313 +1,80 @@
-# stackchan-control-sdk
+# StackChan Control SDK
 
-## Portfolio integration and hardware acceptance — November 2026
+**Give your StackChan a programmable connection to the outside world.**
 
-This SDK owns native StackChan transport/protocol/firmware behavior and
-bounded motion, lighting and display capabilities. **Forge Puppeteer**
-owns semantic emotions/performance, not this SDK; Conversationalist owns
-voice and Business Engine/Platform own company work. Do not create
-a company agent, presentation MCP gateway or second canonical expression
-library in this SDK.
+StackChan Control SDK is a host-side Python toolkit, command-line interface, protocol reference and companion firmware extension for the M5Stack StackChan desktop robot. It exposes native head, face and lighting controls so developers can build interactive applications, create repeatable behaviors and experiment without hardware.
 
-The next meaningful gate is operator-attended USB/firmware/motion/display
-acceptance with the actual connected StackChan and validated native
-capability reporting. Fake tests and a valid firmware bundle do not prove
-physical device readiness. Any three-robot conversation must preserve
-Puppeteer's authority and independently qualified SDK command limits.
+## What you can do
 
-See [portfolio activation](https://github.com/AgenticForge-Labs/agenticforge-platform/blob/main/docs/company-activation-roadmap-2026-11.md).
-This is documentation only; no firmware is flashed.
+- Control supported yaw and pitch movements and update the eyes and mouth.
+- Use built-in RGB lights and a supported NeoHEX 37 light on Port A.
+- Work with typed native packets, the stock Avatar WebSocket framing, and the USB external-control protocol.
+- List and replay explicitly selected native pose and sequence assets using their content revisions.
+- Develop against a memory transport and test without connecting a robot.
 
-Host-side Python SDK, protocol documentation, and companion firmware extension for deterministic external control of M5Stack StackChan.
+The stock packet API and the USB `ExternalControl` facade use different transports. The USB features require compatible EXT CONTROL firmware and advertised capabilities. Native firmware animation remains gated in the external-control protocol; availability varies by firmware. See [Architecture](docs/architecture.md) and [USB protocol](protocol/external-control-v1.md).
 
-## Scope
+## Try it without hardware
 
-This repository exposes **StackChan-native capabilities**:
+Requires Python 3.11 or newer.
 
-- yaw and pitch motion
-- eye and mouth feature updates
-- complete native animation/dance keyframes
-- built-in RGB lighting and a 37-pixel NeoHEX on Port A
-- stock Avatar WebSocket packet framing
-- mocks for development without hardware
-- a pinned external-control firmware overlay
-- a staged USB hardware capability probe
+```bash
+git clone https://github.com/AgenticForge-Labs/stackchan-control-sdk.git
+cd stackchan-control-sdk
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
-It intentionally does **not** define AgenticForge emotions, character personalities, scene directions, dialogue, or WAV playback. Those belong in `forge-puppeteer` and `forge-studios`.
-
-## Current status
-
-The upstream firmware already has the useful behavior engine. The stock Avatar app accepts avatar JSON, motion JSON, and dance sequences and routes them into the existing StackChan runtime. Stock firmware connects outward to M5Stack's cloud relay rather than exposing a supported local endpoint.
-
-This repository now contains the software needed up to the physical-hardware boundary:
-
-1. typed native packet and JSON models;
-2. mock and generic WebSocket transports;
-3. an upstream audit pinned to a public M5Stack commit;
-4. a reproducible firmware overlay that adds an **EXT CONTROL** app;
-5. USB Serial/JTAG request, response, state, stop, validation, and completion handling;
-6. a conservative capability-test CLI and evidence report;
-7. a successful full build under ESP-IDF 5.5.4 with retained flash artifacts.
-
-The first retail USB session on 2026-10-28 passed handshake, operator-confirmed
-face and lighting updates, bounded yaw/pitch motion, and visual restoration.
-Matching command completion and stop acknowledgments were recorded, including
-a supervised active-motion cancellation and restoration follow-up. This is
-initial hardware evidence: independent positioning accuracy, reconnects, and
-host-loss behavior remain unverified. See
-[`docs/hardware-capability-test.md`](docs/hardware-capability-test.md).
-
-## Angle units
-
-M5Stack's native servo JSON represents angles as integer **tenths of a degree**. For example, native `450` means 45°. The high-level `StackChan.set_pose()` API accepts ordinary degrees and converts them. Lower-level `ServoUpdate.angle` and the external-control JSON protocol use native tenths.
-
-Continuous-rotation commands and custom spring parameters are deliberately disabled in external-control protocol v1. Position commands are validated against the upstream native limits before reaching the servos.
-
-## Python example
+This example uses a memory transport; it does not connect to a robot:
 
 ```python
+import asyncio
+
 from stackchan_control import AvatarUpdate, FeatureUpdate, StackChan
 from stackchan_control.transports import MemoryTransport
 
-transport = MemoryTransport()
+async def main():
+    transport = MemoryTransport()
+    async with StackChan(transport) as robot:
+        await robot.set_pose(yaw=20, pitch=45, speed=25)
+        await robot.update_avatar(AvatarUpdate(mouth=FeatureUpdate(size=8)))
 
-async with StackChan(transport) as robot:
-    # Degree-based convenience API; serialized as yaw=200 and pitch=450.
-    await robot.set_pose(yaw=20, pitch=45, speed=25)
-    await robot.update_avatar(
-        AvatarUpdate(mouth=FeatureUpdate(size=8))
-    )
+asyncio.run(main())
 ```
 
-Partial native animation keyframes are rejected. The upstream parser supplies defaults for omitted fields, including fields that are unsafe to guess, so each transmitted frame must explicitly include both eyes, mouth, yaw, pitch, and servo speeds.
+The high-level `set_pose()` uses degrees; low-level native servo values use integer tenths of a degree. See [Architecture](docs/architecture.md) for the units and transport boundaries.
 
-## Hardware-ready workflow
+## Connect a StackChan
 
-Prepare and build the pinned M5Stack firmware with the AgenticForge overlay:
+Install the serial extra with `pip install -e '.[serial]'`. The local USB workflow requires compatible firmware with the **EXT CONTROL** app. Read the [hardware capability test](docs/hardware-capability-test.md), [firmware guide](firmware/README.md), and [firmware installation guidance](docs/firmware-release.md) before preparing or flashing firmware. Flashing is a separate manual action.
 
-```bash
-python tools/prepare_firmware.py --refresh --build
-```
-
-After flashing and opening **EXT CONTROL** on StackChan, begin with a non-moving test:
+With a compatible device and EXT CONTROL running, begin with discovery:
 
 ```bash
-pip install -e '.[serial]'
 stackchan-probe ports
 stackchan-probe hello --port /dev/ttyACM0
+stackchan --port /dev/ttyACM0 discover
+stackchan --port /dev/ttyACM0 state
 ```
 
-Then test face and lights without servo movement:
+Choose the actual port for your device. If EXT CONTROL is missing, consult the [recovery guide](docs/disappearing-app-recovery.md) before considering a flash.
 
-```bash
-stackchan-probe run \
-  --port /dev/ttyACM0 \
-  --output hardware-reports/first.json
-```
+Physical motion requires an attentive operator and device-specific review. Firmware-reported positions are not independent measurements, and STOP and host-loss behavior are not safety-rated or fully qualified. A timeout or lost connection can leave the outcome unknown; inspect the device rather than retrying automatically. Do not run simultaneous clients on the same serial port.
 
-Motion is opt-in and deliberately limited to small ranges:
+## Working with Forge Puppeteer
 
-```bash
-stackchan-probe run \
-  --port /dev/ttyACM0 \
-  --allow-motion \
-  --output hardware-reports/first-motion.json
-```
+The SDK is independently usable from Python and the CLI. [Forge Puppeteer](https://github.com/AgenticForge-Labs/forge-puppeteer) adds optional semantic expression, coordinated multi-robot performance and an MCP interface for agents. StackChan's native protocol, device capabilities and execution safeguards remain in this SDK and its firmware; personalities and higher-level performances belong to the application.
 
-See [`docs/hardware-capability-test.md`](docs/hardware-capability-test.md) before connecting or flashing hardware.
+## Explore
 
-## External NeoHEX shows
-
-With one NeoHEX 37 connected to side Port A, extension 0.3.0 adds bounded
-per-pixel lighting over USB. After the dim hardware check:
-
-```bash
-python tools/neohex_show.py --port DETECTED_PORT --show all \
-  --brightness 8 --seconds 6 --output hardware-reports/neohex-shows.json
-```
-
-See [NeoHEX setup, limits, and timeout](docs/neohex.md). This leaves the face
-and servos unchanged.
-
-## Development
-
-The driver regression test also requires a C++ compiler (`c++`).
-
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[dev]'
-pytest
-ruff check .
-mypy
-```
-
-## Missing EXT CONTROL or Remote Control?
-
-A missing launcher icon is **not automatically a missing firmware image**.
-On pinned M5Stack firmware, AI Agent can bypass/unload the normal launcher,
-and M5Stack documents that entering AI Agent may also install factory OTA
-firmware, which can replace our EXT CONTROL overlay. Use the
-[nonmoving recovery decision tree](docs/disappearing-app-recovery.md)
-to distinguish ordinary launcher mode, installed image identity, a USB
-port/handshake problem, and a genuine firmware replacement before considering
-any flash. Our current 0.4.0 bundle is for **attended manual installation**,
-not an automatic firmware update or restoration of factory settings.
-
-## Firmware installation bundles
-
-A clean source build always begins with a pinned M5Stack checkout and our tracked overlay:
-
-```bash
-python3 tools/prepare_firmware.py --refresh --build
-python3 tools/package_firmware.py --output dist/stackchan-external-control-0.4.0.zip
-```
-
-The resulting ZIP contains the actual ESP-IDF flash images and offsets, checksum manifest,
-M5Stack license, offline `SHA256SUMS` verification, checked flash offsets,
-and manual flashing instructions. It does **not** flash hardware,
-erase NVS, or include a factory image. The repository is private, so there is no
-public installer yet. See [firmware releases](docs/firmware-release.md) and
-[hardware safety](docs/hardware-capability-test.md) before installation.
-
-The source checkout is pinned, but some Git dependencies, ESP-IDF component
-resolutions, build timestamps, and the build-container digest are not yet locked.
-Identical ZIP output from identical inputs does **not** establish bit-for-bit
-reproducible firmware compilation.
-
-## Firmware strategy
-
-Do not rewrite StackChan firmware. The overlay adds one launcher app and one local transport while reusing M5Stack's existing motion, avatar, animation, calibration, and hardware code. The full upstream tree is fetched at the commit in `firmware/upstream.lock.json`, so upstream attribution and history remain clear.
-
-See:
-
-- [`docs/upstream-audit.md`](docs/upstream-audit.md)
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/hardware-capability-test.md`](docs/hardware-capability-test.md)
-- [`protocol/stock-avatar-websocket.md`](protocol/stock-avatar-websocket.md)
-- [`protocol/external-control-v1.md`](protocol/external-control-v1.md)
-- [`firmware/README.md`](firmware/README.md)
+- [Hardware testing and safety](docs/hardware-capability-test.md)
+- [Firmware releases](docs/firmware-release.md) and [recovery](docs/disappearing-app-recovery.md)
+- [Architecture](docs/architecture.md), [stock Avatar protocol](protocol/stock-avatar-websocket.md), and [USB external-control protocol](protocol/external-control-v1.md)
+- [Execution state and STOP fencing](docs/execution-state.md)
+- [NeoHEX setup and limits](docs/neohex.md)
+- [Current status and history](STATUS.md) and [development plan](PLAN.md)
 
 ## License
 
-AgenticForge Labs code in this repository is MIT licensed. M5Stack code remains upstream and any prepared or distributed modified firmware must retain M5Stack's original copyright and MIT notices. See [`NOTICE`](NOTICE).
-
-## USB external-control facade
-
-The `ExternalControl` facade uses `RoutedSerialClient` for the EXT CONTROL USB
-protocol; it is separate from the stock packet `StackChan` API. Open it explicitly
-with `RoutedSerialClient.open(port)` and close the client after use. The installed
-`stackchan` command exposes discovery, state, head, face, builtin lights, NeoHEX,
-and stop; run `stackchan --help` and `stackchan --port PORT COMMAND --help` for
-arguments. Outputs and runtime errors are JSON. For example:
-
-```bash
-stackchan --port /dev/ttyACM0 discover
-stackchan --port /dev/ttyACM0 state
-stackchan --port /dev/ttyACM0 face --feature mouth --size 10
-```
-
-Head targets use integer tenths of a degree and a mandatory native speed. They
-are checked against protocol bounds and the current firmware-reported limits.
-Face, lights, and motion are separate typed operations. The firmware's reported
-positions and completion are its model/servo state, not independent measurement.
-The SDK has no automatic reconnect or motion retry: timeout or connection loss
-leaves the command outcome unknown. A pending unknown motion inhibits another
-motion in the same facade. Failed or unconfirmed stop inhibits further motion in
-that facade; inspect the device and resolve safety before creating a new session.
-A stop request bypasses motion waiting and invalidates motion preflight. Hardware
-stop behavior and host-loss handling are not safety-rated or fully qualified.
-The single NeoHEX frame operation does not sustain lighting: firmware clears it
-unless refreshed within its advertised watchdog period. Native animation remains
-gated. Do not run simultaneous clients against the same serial port.
-
-## Public execution-state API for supervised automation
-
-The native USB facade exposes a frozen
-`robot.execution_state()` generation snapshot. When a manual or
-agentic workflow needs to discover capabilities or validate an asset
-before execution, pass its `generation` as
-`expected_generation=` to `move_head`, `update_face`,
-`update_lights`, `update_neohex`, or `play_asset`. The SDK
-rechecks the token under its own STOP/serial submission lock;
-a STOP during preflight invalidates the earlier token. This is
-a reusable **SDK primitive**, not an MCP dependency or permission
-to actuate hardware. Normal Python, CLI and SDK simulation retain
-their existing behavior if no generation is supplied.
-
-```python
-token = robot.execution_state()
-robot.update_face(
-    AvatarUpdate(mouth=FeatureUpdate(size=8)),
-    expected_generation=token.generation,
-)
-```
-
-The token is local to that connected facade and **not** a motion
-lease or physical-stop certificate. Use
-[the execution-generation contract](docs/execution-state.md)
-for replay/NeoHEX rules, STOP races and unqualified host-loss
-limits. Robot-to-MCP registration and performance semantics belong
-to optional Forge Puppeteer, never to this SDK.
-
-## Local native assets
-
-`stackchan assets --pack examples/assets` lists the explicitly selected pack
-without opening serial. Each JSON file contains a versioned pose or sequence of
-host-driven typed face, head, or built-in light operations. The loader rejects
-invalid, out-of-order, oversized, duplicate, and unsupported assets and returns a
-SHA-256 revision of the original file. These are example data, not a firmware
-emotion library or evidence of hardware suitability.
-Catalog descriptors use `stackchan/`-prefixed IDs, report resources derived
-from the steps, and mark device compatibility as unchecked. `duration_s` reports
-the authored schedule span (the final step's `at_s`), not measured device runtime:
-the last requested start time is not evidence that movement has completed.
-Playback checks that the in-memory asset still matches its original file snapshot
-and revision; reloading changed file contents produces a different revision.
-
-An operator can select an exact ID and revision with `stackchan --port PORT play
---pack PACK --id ID --revision sha256:...`. The Python equivalent is `load_asset`
-or `list_assets` followed by `play_asset(robot, asset, expected_revision=...)`.
-Playback validates the entire in-memory asset and revision before the first
-operation, then executes steps sequentially, rechecking device capabilities and
-motion limits on each operation. Late steps are explicitly delayed until the prior
-step completes; result records include requested and observed host timings. This is
-not a hard real-time scheduler. A concurrent `robot.stop()` interrupts future
-steps; its result must be checked separately. If an operation fails or times out,
-playback raises immediately and does not infer a safe outcome or automatically
-retry; the caller remains responsible for requesting and verifying stop. Native
-firmware animation is still gated and is never used for these assets.
-
-For sustained NeoHEX output, `sustain_neohex` and the `neohex --duration`
-option refresh against the firmware-advertised watchdog and explicitly clear the
-frame. See [NeoHEX details](docs/neohex.md) for cancellation and failure semantics.
-
-
-## Optional native face scale (0.4.0 candidate)
-
-The EXT CONTROL firmware previously enlarged the entire face about **1.7×**
-by default for filming. This is now an **explicit display option**, separate
-from all eye/mouth expressive feature controls and from servo geometry.
-New firmware starts with the normal **100%** stock face. A trusted connected
-operator can select **170%** (same LVGL scale 435 used previously) or return
-to **100%** (LVGL scale 256):
-
-```bash
-stackchan --port OPERATOR_SELECTED_PORT face-scale --percent 170
-stackchan --port OPERATOR_SELECTED_PORT state
-stackchan --port OPERATOR_SELECTED_PORT face-scale --percent 100
-```
-
-The Python equivalent is `robot.set_face_scale(170,
-expected_generation=token.generation)` on the existing `ExternalControl`
-facade. Discovery must advertise `display.face_scale`; old 0.3.0 firmware
-does not implement it and no unrequested firmware update, reconnect, or
-retry occurs. `system.state.display.face_scale_percent` reports the selected
-presentation setting. It affects neither the native feature geometry nor
-`face.update`/head motion limits. Scale resets to normal when the EXT
-CONTROL app is relaunched. Native animation remains gated.
-
-**Status:** source implementation and CI support only until a reproducible
-ESP-IDF image builds and the user visually accepts both modes on StackChan.
-Do not flash automatically, infer safety qualification, or describe this as
-an available capability on the already flashed 0.3.0 unit.
+AgenticForge Labs code in this repository is MIT licensed. Prepared or distributed modified firmware must retain M5Stack's original copyright and MIT notices. See [NOTICE](NOTICE).
