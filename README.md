@@ -1,5 +1,23 @@
 # stackchan-control-sdk
 
+## Portfolio integration and hardware acceptance — November 2026
+
+This SDK owns native StackChan transport/protocol/firmware behavior and
+bounded motion, lighting and display capabilities. **Forge Puppeteer**
+owns semantic emotions/performance, not this SDK; Conversationalist owns
+voice and Business Engine/Platform own company work. Do not create
+a company agent, presentation MCP gateway or second canonical expression
+library in this SDK.
+
+The next meaningful gate is operator-attended USB/firmware/motion/display
+acceptance with the actual connected StackChan and validated native
+capability reporting. Fake tests and a valid firmware bundle do not prove
+physical device readiness. Any three-robot conversation must preserve
+Puppeteer's authority and independently qualified SDK command limits.
+
+See [portfolio activation](https://github.com/AgenticForge-Labs/agenticforge-platform/blob/main/docs/company-activation-roadmap-2026-11.md).
+This is documentation only; no firmware is flashed.
+
 Host-side Python SDK, protocol documentation, and companion firmware extension for deterministic external control of M5Stack StackChan.
 
 ## Scope
