@@ -29,13 +29,18 @@ pip install -e .
 This example uses a memory transport; it does not connect to a robot:
 
 ```python
+import asyncio
+
 from stackchan_control import AvatarUpdate, FeatureUpdate, StackChan
 from stackchan_control.transports import MemoryTransport
 
-transport = MemoryTransport()
-async with StackChan(transport) as robot:
-    await robot.set_pose(yaw=20, pitch=45, speed=25)
-    await robot.update_avatar(AvatarUpdate(mouth=FeatureUpdate(size=8)))
+async def main():
+    transport = MemoryTransport()
+    async with StackChan(transport) as robot:
+        await robot.set_pose(yaw=20, pitch=45, speed=25)
+        await robot.update_avatar(AvatarUpdate(mouth=FeatureUpdate(size=8)))
+
+asyncio.run(main())
 ```
 
 The high-level `set_pose()` uses degrees; low-level native servo values use integer tenths of a degree. See [Architecture](docs/architecture.md) for the units and transport boundaries.
