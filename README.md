@@ -1,6 +1,8 @@
 # StackChan Control SDK
 
-**Give your StackChan a programmable connection to the outside world.**
+**Control StackChan from AI agents through a standard MCP interface with [Forge Puppeteer](https://github.com/AgenticForge-Labs/forge-puppeteer), or use this SDK directly for native device control.**
+
+Puppeteer gives agents tool calls for supported native robot capabilities and shared behaviors, actions, and emotions across open-source robots. Inspired by [Reachy Mini](https://github.com/pollen-robotics/reachy_mini) and the [Reachy Mini Conversation App](https://github.com/pollen-robotics/reachy_mini_conversation_app), it generalizes conversational robot performance across devices. Available tools depend on the selected server, device capabilities, configuration and operator grants.
 
 StackChan Control SDK is a host-side Python toolkit, command-line interface, protocol reference and companion firmware extension for the M5Stack StackChan desktop robot. It exposes native head, face and lighting controls so developers can build interactive applications, create repeatable behaviors and experiment without hardware.
 
@@ -74,6 +76,10 @@ The SDK is independently usable from Python and the CLI. [Forge Puppeteer](https
 - [Execution state and STOP fencing](docs/execution-state.md)
 - [NeoHEX setup and limits](docs/neohex.md)
 - [Current status and history](STATUS.md) and [development plan](PLAN.md)
+
+## Acknowledgments
+
+Thanks to the [Stack-chan community](https://github.com/stack-chan/stack-chan) and [M5Stack StackChan](https://github.com/m5stack/StackChan) for the open robot and firmware, and to [Pollen Robotics](https://github.com/pollen-robotics/reachy_mini) for Reachy Mini and its [Conversation App](https://github.com/pollen-robotics/reachy_mini_conversation_app), which inspire Puppeteer's shared approach.
 
 ## License
 
