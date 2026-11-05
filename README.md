@@ -1,3 +1,5 @@
+![Ink illustration of a two-footed StackChan with expressions, motion diagrams, and a connected computer](docs/images/stackchan-header.webp)
+
 # StackChan Control SDK
 
 **Control StackChan from AI agents through a standard MCP interface with [Forge Puppeteer](https://github.com/AgenticForge-Labs/forge-puppeteer), or use this SDK directly for native device control.**
