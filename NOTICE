@@ -1,6 +1,9 @@
 stackchan-control-sdk
 Copyright (c) 2026 AgenticForge Labs
 
+AgenticForge Labs-authored work is licensed under Apache License 2.0; see LICENSE.
+Original upstream M5Stack materials remain under their upstream MIT terms.
+
 This project interoperates with M5Stack StackChan firmware. The audited upstream
 project is copyright M5Stack Technology Co., Ltd. and distributed under the MIT
 License. No upstream source is vendored in the initial implementation.
