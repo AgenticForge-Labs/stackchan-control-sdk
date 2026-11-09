@@ -85,4 +85,4 @@ Thanks to the [Stack-chan community](https://github.com/stack-chan/stack-chan) a
 
 ## License
 
-AgenticForge Labs code in this repository is MIT licensed. Prepared or distributed modified firmware must retain M5Stack's original copyright and MIT notices. See [NOTICE](NOTICE).
+AgenticForge Labs-authored code in this repository is licensed under the [Apache License 2.0](LICENSE). This change does not revoke MIT rights granted for prior releases. M5Stack firmware and other third-party materials retain their original licenses: prepared or distributed modified firmware must retain M5Stack's copyright and MIT notices. See [NOTICE](NOTICE).
